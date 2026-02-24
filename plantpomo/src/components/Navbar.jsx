@@ -21,13 +21,13 @@ const Navbar = ({
   return (
     <nav className="flex items-center justify-between px-6 py-4">
       <div className="flex items-center gap-2">
-        <button
+        {/* <button
           className="flex items-center gap-2 text-sm text-foreground hover:text-primary transition-colors"
           aria-label="Create project"
         >
           <Plus size={16} />
           <span>Create Your First Project</span>
-        </button>
+        </button> */}
       </div>
 
       <div className="flex items-center gap-2 text-sm text-foreground">

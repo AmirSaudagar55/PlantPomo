@@ -92,6 +92,49 @@ const Index = () => {
           transform: translateY(-2px);
           box-shadow: 0 14px 60px rgba(57,255,20,0.08);
         }
+          /* glassmorphic helper, timer colors, and card spacing */
+        .glassmorphic {
+          background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+          backdrop-filter: blur(8px) saturate(1.05);
+          -webkit-backdrop-filter: blur(8px) saturate(1.05);
+        }
+
+        .bg-timer-bg {
+          background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.32));
+        }
+
+        .bg-timer-green {
+          background: linear-gradient(90deg, rgba(57,255,20,0.06), rgba(0,0,0,0.04));
+        }
+
+        .text-timer-green {
+          color: #39ff14;
+          text-shadow: 0 0 8px rgba(57,255,20,0.12);
+        }
+
+        /* ensure full-height roots so fixed bottom positioning is correct */
+        html, body, #__next, #root {
+          height: 100%;
+        }
+
+        /* make floating card responsive */
+        @media (max-width: 640px) {
+          .absolute.bottom-8 {
+            bottom: env(safe-area-inset-bottom, 24px);
+            padding-left: 12px;
+            padding-right: 12px;
+          }
+        }
+
+        /* softer border token used by components */
+        .border-input {
+          border-color: rgba(255,255,255,0.06);
+        }
+
+        /* subtle accent shadow for neon accent buttons */
+        .shadow-accent {
+          box-shadow: 0 6px 30px rgba(57,255,20,0.06);
+        }
       `}</style>
 
       {/* Background video (renders only if videoId provided) */}
@@ -109,16 +152,9 @@ const Index = () => {
         />
 
         <main className="flex-1 flex items-center justify-center px-4">
-          <div className="w-full max-w-lg neon-card p-8">
-            <div className="text-center mb-6">
-              <p className={`text-base mb-2 ${theme === "dark" ? "neon-text" : ""}`}>
-                Ready to lock in on your idea?
-              </p>
-              <div className={`font-semibold ${theme === "dark" ? "neon-text" : ""}`}>Focus (30 min)</div>
-            </div>
-
+         
             <FocusCard />
-          </div>
+          
         </main>
 
         <footer className="flex items-center justify-end px-6 py-4 gap-4">
