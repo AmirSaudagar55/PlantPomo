@@ -21,7 +21,7 @@ const PlantProgress = ({
     <div className="flex justify-center mb-2">
       <div className="relative w-[240px] h-[240px]">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 240 240">
-          {/* Outer track */}
+          {/* 🔵 OUTER TRACK */}
           <circle
             cx="120"
             cy="120"
@@ -31,23 +31,23 @@ const PlantProgress = ({
             strokeWidth={strokeWidth}
           />
 
-          {/* Outer progress */}
+          {/* 🔵 TIMER PROGRESS (CYAN NEON) */}
           <circle
             cx="120"
             cy="120"
             r={outerRadius}
             fill="none"
-            stroke="hsl(var(--timer-green))"
+            stroke="hsl(190 95% 55%)"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={outerCircumference}
             strokeDashoffset={outerOffset}
             style={{
-              filter: "drop-shadow(0 0 6px hsl(var(--timer-green)))",
+              filter: "drop-shadow(0 0 8px hsl(190 95% 55%))",
             }}
           />
 
-          {/* Inner track */}
+          {/* 🟢 INNER TRACK */}
           <circle
             cx="120"
             cy="120"
@@ -57,24 +57,24 @@ const PlantProgress = ({
             strokeWidth={strokeWidth}
           />
 
-          {/* Inner progress */}
+          {/* 🟢 GROWTH PROGRESS (GREEN NEON) */}
           <circle
             cx="120"
             cy="120"
             r={innerRadius}
             fill="none"
-            stroke="hsl(145 80% 55%)"
+            stroke="hsl(145 85% 55%)"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={innerCircumference}
             strokeDashoffset={innerOffset}
             style={{
-              filter: "drop-shadow(0 0 6px hsl(145 80% 55%))",
+              filter: "drop-shadow(0 0 8px hsl(145 85% 55%))",
             }}
           />
         </svg>
 
-        {/* ✅ PERFECT GLASS CIRCLE (tight fit) */}
+        {/* 🌱 GLASS CENTER */}
         <div className="absolute inset-0 flex items-center justify-center">
           <button
             onClick={onPlantClick}
@@ -94,9 +94,9 @@ const PlantProgress = ({
           >
             <Sprout
               size={72}
-              className="text-timer-green"
+              className="text-emerald-400"
               style={{
-                filter: "drop-shadow(0 0 8px hsl(var(--timer-green)))",
+                filter: "drop-shadow(0 0 10px rgba(52,211,153,0.9))",
               }}
             />
           </button>
