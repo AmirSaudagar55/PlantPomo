@@ -1,0 +1,154 @@
+import React, { useEffect, useState } from "react";
+import Navbar from "@/components/Navbar";
+import FocusCard from "@/components/FocusCard";
+import VideoBackground from "@/components/VideoBackground";
+import YouTubeLinkPopup from "@/components/YouTubeLinkPopup";
+import { Trash2 } from "lucide-react";
+
+const Index = () => {
+  // load saved theme or default to dark
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("theme") || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  const [videoId, setVideoId] = useState(null);
+  const [ytPopupOpen, setYtPopupOpen] = useState(false);
+
+  // NEW: mute state; default true so autoplay (muted) works reliably
+  const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    // Toggle a 'dark' class on the root element for global CSS control
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+      root.classList.remove("light");
+    } else {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+
+  // NEW: toggle mute. This user gesture will attempt to remount iframe with sound.
+  const toggleMute = () => {
+    setIsMuted((m) => !m);
+  };
+
+  return (
+    <div
+      className={`min-h-screen flex flex-col transition-colors duration-300 ${
+        theme === "dark" ? "bg-[#05060a] text-[#e6ffe6]" : "bg-white text-[#0b1220]"
+      }`}
+    >
+      {/* Neon CSS (scoped here) */}
+      <style>{`
+        :root {
+          --neon: #39ff14; /* neon green */
+          --neon-2: #7dfaff; /* neon cyan accent */
+          --card-bg-dark: rgba(8,10,14,0.6);
+          --card-border-dark: rgba(57,255,20,0.12);
+        }
+        .neon-text { color: var(--neon); text-shadow: 0 0 8px rgba(57,255,20,0.20), 0 0 30px rgba(57,255,20,0.06); }
+        .neon-card { border-radius: 14px; }
+        .dark .neon-card {
+          background: linear-gradient(180deg, rgba(5,8,12,0.6), rgba(8,10,14,0.55));
+          border: 1px solid var(--card-border-dark);
+          box-shadow: 0 6px 30px rgba(0,0,0,0.6), 0 0 30px rgba(57,255,20,0.03) inset;
+        }
+        .light .neon-card {
+          background: linear-gradient(180deg, #ffffff, #f7fafc);
+          border: 1px solid rgba(11,18,32,0.06);
+          box-shadow: 0 6px 20px rgba(8,12,20,0.04);
+        }
+        .neon-btn {
+          border-radius: 10px;
+          padding: 0.5rem 0.85rem;
+          border: 1px solid transparent;
+          background: linear-gradient(90deg, rgba(57,255,20,0.06), rgba(0,0,0,0.04));
+          box-shadow: 0 6px 24px rgba(57,255,20,0.02);
+          color: inherit;
+        }
+        .neon-glow {
+          background: radial-gradient(circle at center, rgba(57,255,20,0.14), rgba(57,255,20,0.02));
+          border-radius: 9999px;
+          padding: 0.55rem;
+        }
+        .dark .trash-btn {
+          background: linear-gradient(90deg, rgba(57,255,20,0.04), rgba(0,0,0,0.03));
+          border: 1px solid rgba(57,255,20,0.08);
+          color: var(--neon);
+          box-shadow: 0 6px 30px rgba(57,255,20,0.03);
+        }
+        .dark .trash-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 14px 60px rgba(57,255,20,0.08);
+        }
+      `}</style>
+
+      {/* Background video (renders only if videoId provided) */}
+      <VideoBackground videoId={videoId} isMuted={isMuted} />
+
+      {/* Foreground content */}
+      <div className="relative z-10 min-h-screen flex flex-col">
+        {/* pass onGridClick, theme toggler, and mute controls */}
+        <Navbar
+          onGridClick={() => setYtPopupOpen(true)}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          isMuted={isMuted}
+          toggleMute={toggleMute}
+        />
+
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="w-full max-w-lg neon-card p-8">
+            <div className="text-center mb-6">
+              <p className={`text-base mb-2 ${theme === "dark" ? "neon-text" : ""}`}>
+                Ready to lock in on your idea?
+              </p>
+              <div className={`font-semibold ${theme === "dark" ? "neon-text" : ""}`}>Focus (30 min)</div>
+            </div>
+
+            <FocusCard />
+          </div>
+        </main>
+
+        <footer className="flex items-center justify-end px-6 py-4 gap-4">
+          <button
+            className="p-3 rounded-lg transition-transform trash-btn"
+            title="Delete"
+            onClick={() => {
+              /* hook deletion here */
+              console.log("trash");
+            }}
+          >
+            <Trash2 size={18} />
+          </button>
+        </footer>
+      </div>
+
+      {/* YouTube popup: onSubmit receives videoId or empty string to remove */}
+      <YouTubeLinkPopup
+        open={ytPopupOpen}
+        onClose={() => setYtPopupOpen(false)}
+        onSubmit={(id) => {
+          console.log("Index: onSubmit received id:", id);
+          setVideoId(id || null);
+          // keep it muted on initial set so autoplay works in most browsers
+          setIsMuted(true);
+          setYtPopupOpen(false);
+        }}
+      />
+    </div>
+  );
+};
+
+export default Index;
