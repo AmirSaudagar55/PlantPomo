@@ -18,7 +18,7 @@ const PlantProgress = ({
     innerCircumference - (growthProgress / 100) * innerCircumference;
 
   return (
-    <div className="flex justify-center mb-6">
+    <div className="flex justify-center mb-2">
       <div className="relative w-[240px] h-[240px]">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 240 240">
           {/* Outer track */}
@@ -31,7 +31,7 @@ const PlantProgress = ({
             strokeWidth={strokeWidth}
           />
 
-          {/* Outer progress - timer */}
+          {/* Outer progress */}
           <circle
             cx="120"
             cy="120"
@@ -57,7 +57,7 @@ const PlantProgress = ({
             strokeWidth={strokeWidth}
           />
 
-          {/* Inner progress - growth */}
+          {/* Inner progress */}
           <circle
             cx="120"
             cy="120"
@@ -74,11 +74,23 @@ const PlantProgress = ({
           />
         </svg>
 
-        {/* Center circle with plant icon */}
+        {/* ✅ PERFECT GLASS CIRCLE (tight fit) */}
         <div className="absolute inset-0 flex items-center justify-center">
           <button
             onClick={onPlantClick}
-            className="w-[160px] h-[160px] rounded-full bg-secondary flex items-center justify-center cursor-pointer hover:brightness-110 transition-all"
+            className="
+              w-[160px] h-[160px]
+              rounded-full
+              flex items-center justify-center
+              cursor-pointer
+              transition-all duration-300
+              backdrop-blur-xl
+              bg-white/10
+              border border-white/20
+              shadow-[0_0_30px_rgba(34,197,94,0.25)]
+              hover:scale-105
+              hover:brightness-110
+            "
           >
             <Sprout
               size={72}

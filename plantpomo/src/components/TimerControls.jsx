@@ -10,7 +10,7 @@ const TimerControls = () => {
   ];
 
   return (
-    <div className="flex items-center justify-center gap-4 mt-4">
+    <div className="flex items-center justify-center gap-3 flex-wrap">
       {controls.map((ctrl, i) => {
         const Icon = ctrl.icon;
         return (
@@ -18,7 +18,7 @@ const TimerControls = () => {
             key={i}
             type="button"
             aria-label={ctrl.label}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shrink-0 ${
               ctrl.active
                 ? "bg-accent shadow-[0_0_20px_rgba(57,255,20,0.16)]"
                 : "bg-secondary hover:bg-border"
@@ -26,7 +26,11 @@ const TimerControls = () => {
           >
             <Icon
               size={18}
-              className={ctrl.active ? "text-accent-foreground" : "text-muted-foreground"}
+              className={
+                ctrl.active
+                  ? "text-accent-foreground"
+                  : "text-muted-foreground"
+              }
             />
           </button>
         );
