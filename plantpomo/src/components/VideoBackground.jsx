@@ -1,7 +1,7 @@
 // VideoBackground.jsx
 import React, { useEffect, useRef } from "react";
 
-const VideoBackground = ({ videoId = null, isMuted = true, volume = 100 }) => {
+const VideoBackground = ({ videoId = null, isMuted = true, volume = 100, isHidden = false }) => {
   const iframeRef = useRef(null);
 
   // Send volume command to YouTube player via postMessage (YouTube IFrame API)
@@ -45,6 +45,9 @@ const VideoBackground = ({ videoId = null, isMuted = true, volume = 100 }) => {
       style={{
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
+        opacity: isHidden ? 0 : 1,
+        transition: "opacity 0.5s ease-in-out",
+        pointerEvents: isHidden ? "none" : "auto",
       }}
     >
       <iframe
@@ -58,10 +61,13 @@ const VideoBackground = ({ videoId = null, isMuted = true, volume = 100 }) => {
           position: "absolute",
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "max(100vw, calc(100vh * (16/9)))",
-          height: "max(100vh, calc(100vw * (9/16)))",
-          border: "0",
+          transform: "translate(-50%, -50%) scale(1.1)",
+          width: "100vw",
+          height: "100vh",
+          minWidth: "177.78vh",
+          minHeight: "56.25vw",
+          border: "none",
+          pointerEvents: "none",
         }}
       />
 

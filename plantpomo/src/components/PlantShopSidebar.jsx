@@ -1,20 +1,11 @@
 import {
   X,
-  Sprout,
-  TreePine,
-  Flower2,
-  Trees,
-  Palmtree,
-  Mountain,
-  Waves,
-  Castle,
-  Snowflake,
-  Flame,
   Droplets,
   Lock,
   Check,
 } from "lucide-react";
 import { useState } from "react";
+import { plants, lands } from "./tilesData";
 
 const rarityColors = {
   common: {
@@ -43,23 +34,6 @@ const rarityColors = {
   },
 };
 
-export const plants = [
-  { id: "sprout",  name: "Sprout",     icon: <Sprout size={28} />,   rarity: "common",   cost: null, owned: true },
-  { id: "flower",  name: "Bloom",      icon: <Flower2 size={28} />,  rarity: "common",   cost: null, owned: true },
-  { id: "pine",    name: "Pine",       icon: <TreePine size={28} />, rarity: "common",   cost: null, owned: false },
-  { id: "palm",    name: "Tropical",   icon: <Palmtree size={28} />, rarity: "rare",     cost: 50,   owned: false },
-  { id: "forest",  name: "Ancient Oak",icon: <Trees size={28} />,    rarity: "rare",     cost: 120,  owned: false },
-  { id: "frost",   name: "Frost Fern", icon: <Snowflake size={28} />,rarity: "mythical", cost: 300,  owned: false },
-  { id: "fire",    name: "Ember Root", icon: <Flame size={28} />,    rarity: "mythical", cost: 500,  owned: false },
-];
-
-export const lands = [
-  { id: "meadow",   name: "Meadow",       icon: <Mountain size={28} />, rarity: "common",   cost: null, owned: true },
-  { id: "ocean",    name: "Ocean Shore",  icon: <Waves size={28} />,    rarity: "common",   cost: null, owned: false },
-  { id: "highland", name: "Highlands",    icon: <Mountain size={28} />, rarity: "rare",     cost: 80,   owned: false },
-  { id: "castle",   name: "Castle Ruins", icon: <Castle size={28} />,   rarity: "rare",     cost: 150,  owned: false },
-  { id: "volcano",  name: "Volcanic",     icon: <Flame size={28} />,    rarity: "mythical", cost: 400,  owned: false },
-];
 
 const ShopTile = ({ item, isSelected, onSelect }) => {
   const r = rarityColors[item.rarity];
@@ -87,9 +61,13 @@ const ShopTile = ({ item, isSelected, onSelect }) => {
         </span>
       )}
 
-      {/* Icon */}
-      <div className={`${r.text} transition-transform group-hover:scale-110`}>
-        {item.icon}
+      {/* Icon or Image */}
+      <div className={`${r.text} transition-transform group-hover:scale-110 flex items-center justify-center h-10 w-10`}>
+        {item.image ? (
+          <img src={item.image} alt={item.name} className="w-10 h-10 object-contain drop-shadow-md" />
+        ) : (
+          item.icon
+        )}
       </div>
 
       {/* Name */}
@@ -129,42 +107,33 @@ const ShopTile = ({ item, isSelected, onSelect }) => {
 const PlantShopSidebar = ({
   open,
   onClose,
-  selectedPlant,
-  onSelectPlant,
-  selectedLand,
-  onSelectLand,
+  selectedTile,
+  onSelectTile,
 }) => {
   const [tab, setTab] = useState("plants");
   const items = tab === "plants" ? plants : lands;
 
   const handleSelect = (item) => {
-    if (tab === "plants") {
-      onSelectPlant(item);
-    } else {
-      onSelectLand(item);
-    }
+    onSelectTile(item);
   };
 
   const getIsSelected = (item) => {
-    if (tab === "plants") return selectedPlant?.id === item.id;
-    return selectedLand?.id === item.id;
+    return selectedTile?.id === item.id;
   };
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
-          open ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
         onClick={onClose}
       />
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 right-0 z-50 h-full w-[360px] max-w-[90vw] bg-[hsl(220,20%,8%)]/80 backdrop-blur-2xl border-l border-white/10 transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`fixed top-0 right-0 z-50 h-full w-[360px] max-w-[90vw] bg-[hsl(220,20%,8%)]/80 backdrop-blur-2xl border-l border-white/10 transition-transform duration-300 ease-out ${open ? "translate-x-0" : "translate-x-full"
+          }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -187,11 +156,7 @@ const PlantShopSidebar = ({
         {/* Active selection indicator */}
         <div className="mx-5 mb-3 flex items-center gap-3 text-xs text-white/50">
           <span>
-            🌱 <span className="text-emerald-400 font-semibold">{selectedPlant?.name ?? "—"}</span>
-          </span>
-          <span className="text-white/20">·</span>
-          <span>
-            🏔️ <span className="text-blue-400 font-semibold">{selectedLand?.name ?? "—"}</span>
+            ✦ Active Tile: <span className="text-emerald-400 font-semibold">{selectedTile?.name ?? "—"}</span>
           </span>
         </div>
 
@@ -199,21 +164,19 @@ const PlantShopSidebar = ({
         <div className="flex gap-1 mx-5 mb-4 p-1 rounded-lg bg-white/5">
           <button
             onClick={() => setTab("plants")}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${
-              tab === "plants"
-                ? "bg-timer-green/20 text-timer-green"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === "plants"
+              ? "bg-timer-green/20 text-timer-green"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             🌱 Plants
           </button>
           <button
             onClick={() => setTab("lands")}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${
-              tab === "lands"
-                ? "bg-timer-green/20 text-timer-green"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === "lands"
+              ? "bg-timer-green/20 text-timer-green"
+              : "text-muted-foreground hover:text-foreground"
+              }`}
           >
             🏔️ Lands
           </button>

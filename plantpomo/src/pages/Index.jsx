@@ -22,6 +22,18 @@ const Index = () => {
   // default unmuted — user can mute via button
   const [isMuted, setIsMuted] = useState(false);
   const [videoVolume, setVideoVolume] = useState(80);
+  const [isVideoHidden, setIsVideoHidden] = useState(false);
+
+  // Listen for view toggle events
+  useEffect(() => {
+    const handler = (e) => {
+      if (typeof e?.detail?.hidden === "boolean") {
+        setIsVideoHidden(e.detail.hidden);
+      }
+    };
+    window.addEventListener("video:visibilitychange", handler);
+    return () => window.removeEventListener("video:visibilitychange", handler);
+  }, []);
 
   // Listen for volume changes broadcast by MusicMenu
   useEffect(() => {
@@ -148,8 +160,8 @@ const Index = () => {
         }
       `}</style>
 
-      {/* Background video (renders only if videoId provided) */}
-      <VideoBackground videoId={videoId} isMuted={isMuted} volume={videoVolume} />
+      {/* Background video (renders only if videoId provided, hides visually if isVideoHidden but keeps playing) */}
+      <VideoBackground videoId={videoId} isMuted={isMuted} volume={videoVolume} isHidden={isVideoHidden} />
 
       {/* Foreground content */}
       <div className="relative z-10 min-h-screen flex flex-col">

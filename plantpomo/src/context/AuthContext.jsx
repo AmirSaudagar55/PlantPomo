@@ -9,7 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState("");
 
   useEffect(() => {
+    console.log("[Auth] Initializing AuthContext...");
+    console.log("[Auth] hasSupabaseConfig:", hasSupabaseConfig);
+
     if (!hasSupabaseConfig || !supabase) {
+      console.warn("[Auth] Supabase configuration is missing or client is null.");
       setLoading(false);
       return;
     }
@@ -21,19 +25,24 @@ export const AuthProvider = ({ children }) => {
       .then(({ data, error }) => {
         if (!isMounted) return;
         if (error) {
+          console.error("[Auth] Error fetching initial session:", error);
           setAuthError(error.message || "Failed to load session");
         } else {
+          console.log("[Auth] Initial session loaded:", data.session);
           setSession(data.session ?? null);
         }
         setLoading(false);
       })
       .catch((error) => {
         if (!isMounted) return;
+        console.error("[Auth] Exception during getSession():", error);
         setAuthError(error?.message || "Failed to load session");
         setLoading(false);
       });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    console.log("[Auth] Subscribing to auth state changes...");
+    const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      console.log(`[Auth] Auth state changed! Event: ${event}`, { session: nextSession });
       if (!isMounted) return;
       setSession(nextSession ?? null);
     });
@@ -45,29 +54,43 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signInWithProvider = async (provider) => {
+    console.log(`[Auth] Attempting to sign in with provider: ${provider}...`);
     if (!hasSupabaseConfig || !supabase) {
+      console.error("[Auth] Cannot sign in, Supabase config is missing.");
       setAuthError("Missing Supabase env config");
       return;
     }
 
     setAuthError("");
-    const { error } = await supabase.auth.signInWithOAuth({
+    console.log(`[Auth] Initiating OAuth redirect to: ${window.location.origin}`);
+
+    const { error, data } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: window.location.origin,
+        queryParams: {
+          prompt: "consent"
+        }
       },
     });
 
     if (error) {
+      console.error("[Auth] OAuth sign-in returned an error:", error);
       setAuthError(error.message || "OAuth sign-in failed");
+    } else {
+      console.log("[Auth] OAuth sign-in prompt launched successfully.", data);
     }
   };
 
   const signOut = async () => {
+    console.log("[Auth] Attempting to sign out...");
     if (!supabase) return;
     const { error } = await supabase.auth.signOut();
     if (error) {
+      console.error("[Auth] Sign-out failed:", error);
       setAuthError(error.message || "Sign out failed");
+    } else {
+      console.log("[Auth] Successfully signed out.");
     }
   };
 

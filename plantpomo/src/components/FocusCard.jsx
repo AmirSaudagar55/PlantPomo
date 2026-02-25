@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PlantProgress from "./PlantProgress";
-import PlantShopSidebar, { plants, lands } from "./PlantShopSidebar";
+import PlantShopSidebar from "./PlantShopSidebar";
+import { plants, lands } from "./tilesData";
 import SessionComplete from "./SessionComplete";
 
 const DEFAULT_FOCUS_MINUTES = 30;
@@ -23,8 +24,7 @@ const FocusCard = () => {
   const [phase, setPhase] = useState("focus");
   const [pomodoroSettings, setPomodoroSettings] = useState(DEFAULT_SETTINGS);
   const [draftSettings, setDraftSettings] = useState(DEFAULT_SETTINGS);
-  const [selectedPlant, setSelectedPlant] = useState(() => plants.find((p) => p.owned) ?? plants[0]);
-  const [selectedLand, setSelectedLand] = useState(() => lands.find((l) => l.owned) ?? lands[0]);
+  const [selectedTile, setSelectedTile] = useState(() => plants.find((p) => p.owned) ?? plants[0]);
   const [showComplete, setShowComplete] = useState(false);
 
   // Allow Navbar "Store" button to open shop via CustomEvent
@@ -163,8 +163,7 @@ const FocusCard = () => {
               timerProgress={timerProgress}
               growthProgress={growthProgress}
               onPlantClick={() => setShopOpen(true)}
-              selectedPlant={selectedPlant}
-              selectedLand={selectedLand}
+              selectedTile={selectedTile}
             />
 
             {/* Phase pill */}
@@ -337,10 +336,8 @@ const FocusCard = () => {
       <PlantShopSidebar
         open={shopOpen}
         onClose={() => setShopOpen(false)}
-        selectedPlant={selectedPlant}
-        onSelectPlant={setSelectedPlant}
-        selectedLand={selectedLand}
-        onSelectLand={setSelectedLand}
+        selectedTile={selectedTile}
+        onSelectTile={setSelectedTile}
       />
     </>
   );

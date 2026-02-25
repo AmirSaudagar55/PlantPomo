@@ -11,6 +11,10 @@ import {
   Flame,
 } from "lucide-react";
 
+import imgCarnation from "../assets/PlantTiles/Carnation.png";
+import imgLavander from "../assets/PlantTiles/Lavander.png";
+import imgSakura from "../assets/PlantTiles/Sakura.png";
+
 /** Map plant/land ids → their lucide icon component + color */
 const ICON_MAP = {
   // Plants
@@ -21,6 +25,10 @@ const ICON_MAP = {
   forest: { icon: Trees, color: "text-teal-400", glow: "rgba(45,212,191,0.9)" },
   frost: { icon: Snowflake, color: "text-cyan-300", glow: "rgba(103,232,249,0.9)" },
   fire: { icon: Flame, color: "text-orange-400", glow: "rgba(251,146,60,0.9)" },
+  // New Tiles
+  carnation: { image: imgCarnation, color: "text-pink-400", glow: "rgba(244,114,182,0.6)" },
+  lavander: { image: imgLavander, color: "text-purple-400", glow: "rgba(168,85,247,0.6)" },
+  sakura: { image: imgSakura, color: "text-pink-300", glow: "rgba(249,168,212,0.6)" },
   // Lands
   meadow: { icon: Mountain, color: "text-emerald-400", glow: "rgba(52,211,153,0.9)" },
   ocean: { icon: Waves, color: "text-sky-400", glow: "rgba(56,189,248,0.9)" },
@@ -33,8 +41,7 @@ const PlantProgress = ({
   timerProgress = 75,
   growthProgress = 60,
   onPlantClick,
-  selectedPlant,
-  selectedLand,
+  selectedTile,
 }) => {
   const outerRadius = 108;
   const innerRadius = 96;
@@ -48,14 +55,11 @@ const PlantProgress = ({
   const innerOffset =
     innerCircumference - (growthProgress / 100) * innerCircumference;
 
-  // Resolve plant icon
-  const plantEntry = selectedPlant
-    ? ICON_MAP[selectedPlant.id] ?? ICON_MAP.sprout
+  // Resolve tile icon
+  const plantEntry = selectedTile
+    ? ICON_MAP[selectedTile.id] ?? ICON_MAP.sprout
     : ICON_MAP.sprout;
   const PlantIcon = plantEntry.icon;
-
-  // Resolve land name badge
-  const landName = selectedLand?.name ?? null;
 
   return (
     <div className="flex flex-col items-center mb-2">
@@ -135,30 +139,36 @@ const PlantProgress = ({
             "
             title="Open plant shop"
           >
-            <PlantIcon
-              size={56}
-              className={`${plantEntry.color} transition-all duration-500`}
-              style={{
-                filter: `drop-shadow(0 0 10px ${plantEntry.glow})`,
-              }}
-            />
+            {plantEntry.image ? (
+              <img
+                src={plantEntry.image}
+                alt="Plant"
+                style={{
+                  width: 110,
+                  height: 110,
+                  objectFit: "contain",
+                  filter: `drop-shadow(0 0 16px ${plantEntry.glow}) drop-shadow(0 14px 20px rgba(0,0,0,0.6))`,
+                }}
+                className="transition-all duration-500"
+              />
+            ) : (
+              <PlantIcon
+                size={56}
+                className={`${plantEntry.color} transition-all duration-500`}
+                style={{
+                  filter: `drop-shadow(0 0 10px ${plantEntry.glow})`,
+                }}
+              />
+            )}
             {/* Plant name label */}
             <span
               className={`text-[10px] font-semibold uppercase tracking-widest ${plantEntry.color} opacity-80`}
             >
-              {selectedPlant?.name ?? "Sprout"}
+              {selectedTile?.name ?? "Sprout"}
             </span>
           </button>
         </div>
       </div>
-
-      {/* Land badge — shown below the ring */}
-      {landName && (
-        <div className="mt-1 flex items-center gap-1 text-[11px] text-blue-400/80 font-medium bg-blue-900/20 border border-blue-500/20 px-3 py-0.5 rounded-full">
-          <span>🏔️</span>
-          <span>{landName}</span>
-        </div>
-      )}
     </div>
   );
 };
