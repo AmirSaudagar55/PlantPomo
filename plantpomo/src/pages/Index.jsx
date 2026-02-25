@@ -19,7 +19,19 @@ const Index = () => {
   const [ytPopupOpen, setYtPopupOpen] = useState(false);
 
   // NEW: mute state; default true so autoplay (muted) works reliably
-  const [isMuted, setIsMuted] = useState(true);
+  // default unmuted — user can mute via button
+  const [isMuted, setIsMuted] = useState(false);
+  const [videoVolume, setVideoVolume] = useState(80);
+
+  // Listen for volume changes broadcast by MusicMenu
+  useEffect(() => {
+    const handler = (e) => {
+      const v = Number(e?.detail?.volume);
+      if (!Number.isNaN(v)) setVideoVolume(Math.min(100, Math.max(0, v)));
+    };
+    window.addEventListener("music:volume:change", handler);
+    return () => window.removeEventListener("music:volume:change", handler);
+  }, []);
 
   useEffect(() => {
     // Toggle a 'dark' class on the root element for global CSS control
@@ -33,7 +45,7 @@ const Index = () => {
     }
     try {
       localStorage.setItem("theme", theme);
-    } catch {}
+    } catch { }
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -45,9 +57,8 @@ const Index = () => {
 
   return (
     <div
-      className={`min-h-screen flex flex-col transition-colors duration-300 ${
-        theme === "dark" ? "bg-[#05060a] text-[#e6ffe6]" : "bg-white text-[#0b1220]"
-      }`}
+      className={`min-h-screen flex flex-col transition-colors duration-300 ${theme === "dark" ? "bg-[#05060a] text-[#e6ffe6]" : "bg-white text-[#0b1220]"
+        }`}
     >
       {/* Neon CSS (scoped here) */}
       <style>{`
@@ -138,23 +149,23 @@ const Index = () => {
       `}</style>
 
       {/* Background video (renders only if videoId provided) */}
-      <VideoBackground videoId={videoId} isMuted={isMuted} />
+      <VideoBackground videoId={videoId} isMuted={isMuted} volume={videoVolume} />
 
       {/* Foreground content */}
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* pass onGridClick, theme toggler, and mute controls */}
         <Navbar
-          onGridClick={() => setYtPopupOpen(true)}
           theme={theme}
           toggleTheme={toggleTheme}
           isMuted={isMuted}
           toggleMute={toggleMute}
+          onOpenYouTubePopup={() => setYtPopupOpen(true)}
         />
 
         <main className="flex-1 flex items-center justify-center px-4">
-         
-            <FocusCard />
-          
+
+          <FocusCard />
+
         </main>
 
         <footer className="flex items-center justify-end px-6 py-4 gap-4">
@@ -178,8 +189,8 @@ const Index = () => {
         onSubmit={(id) => {
           console.log("Index: onSubmit received id:", id);
           setVideoId(id || null);
-          // keep it muted on initial set so autoplay works in most browsers
-          setIsMuted(true);
+          // keep muted on first load so autoplay works, user can unmute after
+          setIsMuted(false);
           setYtPopupOpen(false);
         }}
       />
