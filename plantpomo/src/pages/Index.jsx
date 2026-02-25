@@ -99,7 +99,7 @@ const Index = () => {
           color: var(--neon);
           box-shadow: 0 6px 30px rgba(57,255,20,0.03);
         }
-        .dark .trash-btn:hover {
+        .dark .trash-btn:not(:disabled):hover {
           transform: translateY(-2px);
           box-shadow: 0 14px 60px rgba(57,255,20,0.08);
         }
@@ -170,12 +170,10 @@ const Index = () => {
 
         <footer className="flex items-center justify-end px-6 py-4 gap-4">
           <button
-            className="p-3 rounded-lg transition-transform trash-btn"
-            title="Delete"
-            onClick={() => {
-              /* hook deletion here */
-              console.log("trash");
-            }}
+            className="p-3 rounded-lg transition-transform trash-btn disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:border-white/5"
+            title={videoId ? "Remove background video" : "No video loaded"}
+            disabled={!videoId}
+            onClick={() => setVideoId(null)}
           >
             <Trash2 size={18} />
           </button>

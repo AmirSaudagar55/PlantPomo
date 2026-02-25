@@ -75,8 +75,12 @@ const FocusCard = () => {
         if (next <= 0) {
           window.clearInterval(intervalId);
           setIsRunning(false);
-          if (isPomodoro) advancePomodoroPhase();
-          else setCompletedSessions((v) => v + 1);
+          if (isPomodoro) {
+            advancePomodoroPhase();
+          } else {
+            setShowComplete(true);
+            setCompletedSessions((v) => v + 1);
+          }
           return 0;
         }
         return next;
@@ -147,6 +151,8 @@ const FocusCard = () => {
 
   return (
     <>
+      {showComplete && <SessionComplete onDone={() => setShowComplete(false)} />}
+
       {/* ── FOCUS CARD ── */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 w-full max-w-[480px] px-4">
         <div className="rounded-2xl p-5 border glassmorphic border-white/10">
