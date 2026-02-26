@@ -67,10 +67,12 @@ export const AuthProvider = ({ children }) => {
     const { error, data } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: window.location.origin,
+        // Must point to /auth/callback so the PKCE code can be exchanged for a session
+        redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: {
-          prompt: "consent"
-        }
+          access_type: "offline",
+          prompt: "consent",
+        },
       },
     });
 
