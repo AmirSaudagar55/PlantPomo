@@ -5,11 +5,13 @@ import { supabase } from "../lib/supabaseClient";
 /**
  * AuthCallback — handles the Supabase OAuth redirect.
  *
- * Supabase sends the user back to /auth/callback with either:
- *   • PKCE flow: ?code=...&state=...  → we call exchangeCodeForSession()
- *   • Implicit flow: #access_token=... → supabase-js detects this automatically
+ * With implicit flow, Supabase sends the user back to /auth/callback with
+ * the access token in the URL hash:
+ *   /auth/callback#access_token=...&refresh_token=...&type=bearer
  *
- * After the session is set the user is redirected to the home page.
+ * `detectSessionInUrl: true` in supabaseClient means supabase-js will pick
+ * this up automatically and fire SIGNED_IN on the auth state listener.
+ * All we need to do here is WAIT for that event, then navigate home.
  */
 const AuthCallback = () => {
     const navigate = useNavigate();
@@ -21,29 +23,32 @@ const AuthCallback = () => {
             return;
         }
 
-        // Parse the URL for a PKCE 'code' param
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
+        // supabase-js fires SIGNED_IN automatically when it detects the hash token.
+        // We just listen for it and redirect.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === "SIGNED_IN" && session) {
+                console.log("[AuthCallback] SIGNED_IN detected, redirecting home…");
+                subscription.unsubscribe();
+                navigate("/", { replace: true });
+            } else if (event === "INITIAL_SESSION" && !session) {
+                // No session after loading — the auth code may have expired or been invalid
+                console.warn("[AuthCallback] No session on INITIAL_SESSION, navigating home.");
+                subscription.unsubscribe();
+                navigate("/", { replace: true });
+            }
+        });
 
-        if (code) {
-            // PKCE flow — exchange the auth code for a real session
-            supabase.auth
-                .exchangeCodeForSession(code)
-                .then(({ error: exchangeError }) => {
-                    if (exchangeError) {
-                        console.error("[AuthCallback] Code exchange failed:", exchangeError);
-                        setError(exchangeError.message);
-                    } else {
-                        console.log("[AuthCallback] Session established via PKCE, redirecting home…");
-                        navigate("/", { replace: true });
-                    }
-                });
-        } else {
-            // Implicit / hash flow — supabase-js handles this via onAuthStateChange
-            // Just wait a moment and navigate home; the AuthContext will pick up the session
-            const tid = setTimeout(() => navigate("/", { replace: true }), 1200);
-            return () => clearTimeout(tid);
-        }
+        // Safety net: if nothing fires within 5 seconds, go home anyway
+        const timeout = setTimeout(() => {
+            console.warn("[AuthCallback] Timeout waiting for session, navigating home.");
+            subscription.unsubscribe();
+            navigate("/", { replace: true });
+        }, 5000);
+
+        return () => {
+            clearTimeout(timeout);
+            subscription.unsubscribe();
+        };
     }, [navigate]);
 
     return (

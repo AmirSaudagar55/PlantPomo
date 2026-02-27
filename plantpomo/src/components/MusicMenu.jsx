@@ -10,7 +10,6 @@ const VolumeIcon = ({ v }) => {
 
 const MusicMenu = ({ onOpenYouTubePopup = () => { } }) => {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState("Lofi");
   const [volume, setVolume] = useState(80); // default matches Index.jsx default
   const menuRef = useRef(null);
 
@@ -48,7 +47,7 @@ const MusicMenu = ({ onOpenYouTubePopup = () => { } }) => {
 
   const onVolumeChange = (v) => {
     setVolume(v);
-    // Broadcast to Index.jsx → VideoBackground
+    // Broadcast to Index.jsx -> VideoBackground
     window.dispatchEvent(new CustomEvent("music:volume:change", { detail: { volume: v } }));
   };
 
@@ -78,23 +77,7 @@ const MusicMenu = ({ onOpenYouTubePopup = () => { } }) => {
             Background Music
           </p>
 
-          {/* Genre tabs */}
-          <div className="flex gap-1.5 mb-3 p-1 bg-white/5 rounded-xl">
-            {["Lofi", "Ghibli"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${tab === t
-                    ? "bg-emerald-500/25 text-emerald-300 shadow-inner"
-                    : "text-white/40 hover:text-white/70"
-                  }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {/* ── VOLUME SECTION ── */}
+          {/* VOLUME SECTION */}
           <div className="mb-3 p-3 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">
@@ -109,7 +92,7 @@ const MusicMenu = ({ onOpenYouTubePopup = () => { } }) => {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Dynamic volume icon — click to mute/unmute */}
+              {/* Dynamic volume icon - click to mute/unmute */}
               <button
                 onClick={() => onVolumeChange(volume === 0 ? 80 : 0)}
                 className="shrink-0 hover:scale-110 transition-transform"
@@ -163,7 +146,7 @@ const MusicMenu = ({ onOpenYouTubePopup = () => { } }) => {
             onClick={askCustomTime}
             className="w-full py-2 rounded-lg text-xs bg-white/5 hover:bg-white/10 text-white/50 hover:text-white border border-white/5 transition-colors mb-3"
           >
-            Custom time…
+            Custom time...
           </button>
 
           <hr className="border-white/8 mb-3" />

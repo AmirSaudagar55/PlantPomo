@@ -3,9 +3,15 @@ import Navbar from "@/components/Navbar";
 import FocusCard from "@/components/FocusCard";
 import VideoBackground from "@/components/VideoBackground";
 import YouTubeLinkPopup from "@/components/YouTubeLinkPopup";
-import { Trash2 } from "lucide-react";
+import ActivityHeatmap from "@/components/ActivityHeatmap";
+import { Trash2, LayoutGrid } from "lucide-react";
+import { useProfile } from "@/lib/useProfile";
+import { useInventory } from "@/lib/useInventory";
 
 const Index = () => {
+  const { profile, refetch: refetchProfile } = useProfile();
+  const { ownedPlantIds, ownedLandIds, buyItem } = useInventory(profile, refetchProfile);
+
   // load saved theme or default to dark
   const [theme, setTheme] = useState(() => {
     try {
@@ -17,8 +23,8 @@ const Index = () => {
 
   const [videoId, setVideoId] = useState(null);
   const [ytPopupOpen, setYtPopupOpen] = useState(false);
+  const [heatMapOpen, setHeatMapOpen] = useState(false);
 
-  // NEW: mute state; default true so autoplay (muted) works reliably
   // default unmuted — user can mute via button
   const [isMuted, setIsMuted] = useState(false);
   const [videoVolume, setVideoVolume] = useState(80);
@@ -46,7 +52,6 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    // Toggle a 'dark' class on the root element for global CSS control
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -61,22 +66,17 @@ const Index = () => {
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
-
-  // NEW: toggle mute. This user gesture will attempt to remount iframe with sound.
-  const toggleMute = () => {
-    setIsMuted((m) => !m);
-  };
+  const toggleMute = () => setIsMuted((m) => !m);
 
   return (
     <div
-      className={`min-h-screen flex flex-col transition-colors duration-300 ${theme === "dark" ? "bg-[#05060a] text-[#e6ffe6]" : "bg-white text-[#0b1220]"
-        }`}
+      className={`min-h-screen flex flex-col transition-colors duration-300 ${theme === "dark" ? "bg-[#05060a] text-[#e6ffe6]" : "bg-white text-[#0b1220]"}`}
     >
       {/* Neon CSS (scoped here) */}
       <style>{`
         :root {
-          --neon: #39ff14; /* neon green */
-          --neon-2: #7dfaff; /* neon cyan accent */
+          --neon: #39ff14;
+          --neon-2: #7dfaff;
           --card-bg-dark: rgba(8,10,14,0.6);
           --card-border-dark: rgba(57,255,20,0.12);
         }
@@ -115,32 +115,24 @@ const Index = () => {
           transform: translateY(-2px);
           box-shadow: 0 14px 60px rgba(57,255,20,0.08);
         }
-          /* glassmorphic helper, timer colors, and card spacing */
         .glassmorphic {
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
           backdrop-filter: blur(8px) saturate(1.05);
           -webkit-backdrop-filter: blur(8px) saturate(1.05);
         }
-
         .bg-timer-bg {
           background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.32));
         }
-
         .bg-timer-green {
           background: linear-gradient(90deg, rgba(57,255,20,0.06), rgba(0,0,0,0.04));
         }
-
         .text-timer-green {
           color: #39ff14;
           text-shadow: 0 0 8px rgba(57,255,20,0.12);
         }
-
-        /* ensure full-height roots so fixed bottom positioning is correct */
         html, body, #__next, #root {
           height: 100%;
         }
-
-        /* make floating card responsive */
         @media (max-width: 640px) {
           .absolute.bottom-8 {
             bottom: env(safe-area-inset-bottom, 24px);
@@ -148,39 +140,53 @@ const Index = () => {
             padding-right: 12px;
           }
         }
-
-        /* softer border token used by components */
         .border-input {
           border-color: rgba(255,255,255,0.06);
         }
-
-        /* subtle accent shadow for neon accent buttons */
         .shadow-accent {
           box-shadow: 0 6px 30px rgba(57,255,20,0.06);
         }
       `}</style>
 
-      {/* Background video (renders only if videoId provided, hides visually if isVideoHidden but keeps playing) */}
+      {/* Background video */}
       <VideoBackground videoId={videoId} isMuted={isMuted} volume={videoVolume} isHidden={isVideoHidden} />
 
       {/* Foreground content */}
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* pass onGridClick, theme toggler, and mute controls */}
         <Navbar
           theme={theme}
           toggleTheme={toggleTheme}
           isMuted={isMuted}
           toggleMute={toggleMute}
           onOpenYouTubePopup={() => setYtPopupOpen(true)}
+          profile={profile}
         />
 
         <main className="flex-1 flex items-center justify-center px-4">
-
-          <FocusCard />
-
+          <FocusCard
+            profile={profile}
+            refetchProfile={refetchProfile}
+            ownedPlantIds={ownedPlantIds}
+            ownedLandIds={ownedLandIds}
+            onBuyItem={buyItem}
+          />
         </main>
 
-        <footer className="flex items-center justify-end px-6 py-4 gap-4">
+        <footer className="flex items-center justify-between px-6 py-4 gap-4">
+          {/* Activity Heatmap toggle — bottom left */}
+          <button
+            id="heatmap-toggle-btn"
+            title="Focus Activity"
+            onClick={() => setHeatMapOpen((v) => !v)}
+            className={`p-2.5 rounded-xl border transition-all duration-200 ${heatMapOpen
+                ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-300 shadow-[0_0_16px_rgba(57,255,20,0.2)]"
+                : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/70 hover:border-white/20"
+              }`}
+          >
+            <LayoutGrid size={16} />
+          </button>
+
+          {/* Trash — bottom right */}
           <button
             className="p-3 rounded-lg transition-transform trash-btn disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:border-white/5"
             title={videoId ? "Remove background video" : "No video loaded"}
@@ -190,16 +196,21 @@ const Index = () => {
             <Trash2 size={18} />
           </button>
         </footer>
+
+        {/* Activity Heatmap popup */}
+        <ActivityHeatmap
+          open={heatMapOpen}
+          onClose={() => setHeatMapOpen(false)}
+          userId={profile?.id ?? null}
+        />
       </div>
 
-      {/* YouTube popup: onSubmit receives videoId or empty string to remove */}
+      {/* YouTube popup */}
       <YouTubeLinkPopup
         open={ytPopupOpen}
         onClose={() => setYtPopupOpen(false)}
         onSubmit={(id) => {
-          console.log("Index: onSubmit received id:", id);
           setVideoId(id || null);
-          // keep muted on first load so autoplay works, user can unmute after
           setIsMuted(false);
           setYtPopupOpen(false);
         }}

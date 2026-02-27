@@ -67,7 +67,8 @@ export const AuthProvider = ({ children }) => {
     const { error, data } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        // Must point to /auth/callback so the PKCE code can be exchanged for a session
+        // With implicit flow Supabase returns the token in the URL hash to this
+        // callback route; supabase-js picks it up automatically via detectSessionInUrl.
         redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: {
           access_type: "offline",
