@@ -72,7 +72,7 @@ const VideoBackground = ({ videoId = null, isMuted = true, volume = 100, isHidde
       />
 
       {/* overlay to keep foreground readable */}
-      <div className="absolute inset-0 bg-black/60 pointer-events-none" />
+      <div className="absolute inset-0 bg-black/50 pointer-events-none" />
     </div>
   );
 };

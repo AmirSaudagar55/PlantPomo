@@ -500,7 +500,7 @@ const FocusCard = ({
       )}
 
       {/* ── FOCUS CARD ── */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 w-full max-w-[480px] px-4">
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 w-full max-w-[540px] px-4">
         <div className="rounded-2xl p-5 border glassmorphic border-white/10">
           <div className="flex flex-col items-center gap-3">
 

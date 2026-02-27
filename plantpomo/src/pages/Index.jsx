@@ -106,14 +106,35 @@ const Index = () => {
           padding: 0.55rem;
         }
         .dark .trash-btn {
-          background: linear-gradient(90deg, rgba(57,255,20,0.04), rgba(0,0,0,0.03));
-          border: 1px solid rgba(57,255,20,0.08);
+          background: rgba(239,68,68,0.06);
+          border: 1px solid rgba(239,68,68,0.15);
+          color: #f87171;
+          box-shadow: 0 6px 30px rgba(239,68,68,0.04);
+        }
+        .dark .trash-btn:not(:disabled):hover {
+          background: rgba(239,68,68,0.12);
+          border: 1px solid rgba(239,68,68,0.25);
+          color: #ef4444;
+          transform: translateY(-2px);
+          box-shadow: 0 10px 40px rgba(239,68,68,0.08);
+        }
+        .dark .heatmap-btn {
+          background: rgba(57,255,20,0.06);
+          border: 1px solid rgba(57,255,20,0.12);
           color: var(--neon);
           box-shadow: 0 6px 30px rgba(57,255,20,0.03);
         }
-        .dark .trash-btn:not(:disabled):hover {
+        .dark .heatmap-btn:hover {
+          background: rgba(57,255,20,0.12);
+          border: 1px solid rgba(57,255,20,0.25);
           transform: translateY(-2px);
-          box-shadow: 0 14px 60px rgba(57,255,20,0.08);
+          box-shadow: 0 10px 40px rgba(57,255,20,0.08);
+        }
+        .heatmap-active {
+          background: rgba(57,255,20,0.2) !important;
+          border: 1px solid rgba(57,255,20,0.4) !important;
+          color: #ffffff !important;
+          box-shadow: 0 0 20px rgba(57,255,20,0.2) !important;
         }
         .glassmorphic {
           background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
@@ -178,12 +199,9 @@ const Index = () => {
             id="heatmap-toggle-btn"
             title="Focus Activity"
             onClick={() => setHeatMapOpen((v) => !v)}
-            className={`p-2.5 rounded-xl border transition-all duration-200 ${heatMapOpen
-                ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-300 shadow-[0_0_16px_rgba(57,255,20,0.2)]"
-                : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white/70 hover:border-white/20"
-              }`}
+            className={`p-3 rounded-xl transition-all heatmap-btn ${heatMapOpen ? "heatmap-active" : ""}`}
           >
-            <LayoutGrid size={16} />
+            <LayoutGrid size={18} />
           </button>
 
           {/* Trash — bottom right */}
