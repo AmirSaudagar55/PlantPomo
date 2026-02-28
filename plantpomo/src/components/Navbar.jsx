@@ -11,7 +11,9 @@ import {
   LogOut,
   Sparkles,
   X,
+  Trees,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import ShowHideVideoToggle from "./ShowHideVideoToggle";
 import MusicMenu from "./MusicMenu";
 import PricingPlans from "./PricingPlans";
@@ -82,6 +84,15 @@ const Navbar = ({
             <Store size={14} />
             <span>Store</span>
           </button>
+
+          <Link
+            to="/garden"
+            title="Open Garden"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-lime-900/30 border border-lime-500/25 text-lime-300 text-sm font-semibold hover:bg-lime-800/30 transition-colors"
+          >
+            <Trees size={14} />
+            <span>Garden</span>
+          </Link>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-900/30 border border-orange-500/20 text-orange-400 text-sm font-semibold select-none">
             <Flame size={14} className="shrink-0" />
