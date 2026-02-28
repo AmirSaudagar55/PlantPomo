@@ -12,7 +12,9 @@ import {
   Sparkles,
   X,
   Trees,
+  Youtube,
 } from "lucide-react";
+
 import { Link } from "react-router-dom";
 import ShowHideVideoToggle from "./ShowHideVideoToggle";
 import MusicMenu from "./MusicMenu";
@@ -122,7 +124,17 @@ const Navbar = ({
 
           <MusicMenu onOpenYouTubePopup={onOpenYouTubePopup} />
 
+          {/* Dedicated YouTube button */}
+          <button
+            onClick={onOpenYouTubePopup}
+            title="Set YouTube background video"
+            className="p-2 rounded-lg bg-secondary hover:bg-red-500/15 hover:border-red-500/20 border border-transparent transition-colors group"
+          >
+            <Youtube size={16} className="text-muted-foreground group-hover:text-red-400 transition-colors" />
+          </button>
+
           <ShowHideVideoToggle />
+
 
           <button
             onClick={toggleMute}

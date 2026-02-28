@@ -113,6 +113,9 @@ export default function Garden() {
   const viewportRef = useRef({ width: 0, height: 0 });
   const dirtyRef = useRef(true);
   const frameRef = useRef(0);
+  // Debounced garden sync — coalesces rapid placements into 1 DB call
+  const gardenDebounceRef = useRef(null);
+  const GARDEN_DEBOUNCE_MS = 1500;
 
   const [tiles, setTiles] = useState([]);
   const [zoomUi, setZoomUi] = useState(DEFAULT_CAMERA.zoom);
@@ -172,6 +175,33 @@ export default function Garden() {
     return null;
   }, [findTileAt]);
 
+  // ── Debounced garden DB sync ──────────────────────────────────────────────
+  // Writes the full layout to Supabase once, after GARDEN_DEBOUNCE_MS of quiet.
+  // This collapses "place 10 tiles quickly" from 10 network calls → 1.
+  const scheduleSyncGarden = useCallback((latestTiles) => {
+    // Always write to localStorage immediately for instant reloads
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        version: 2, savedAt: new Date().toISOString(),
+        tiles: normalizeTiles(latestTiles), camera: { ...cameraRef.current },
+      }));
+    } catch { }
+
+    if (!supabase || !profile?.id) return;
+    clearTimeout(gardenDebounceRef.current);
+    gardenDebounceRef.current = setTimeout(async () => {
+      const snapshot = normalizeTiles(tilesRef.current); // read latest ref
+      const { error } = await supabase.rpc("sync_garden_layout", {
+        p_tiles: snapshot.map(t => ({ plant_id: t.type, grid_x: t.x, grid_y: t.y })),
+      });
+      if (error) console.warn("[Garden] debounced sync failed:", error.message);
+      else {
+        savedSnapshotRef.current = snapshotTiles(snapshot);
+        setIsDirty(false);
+      }
+    }, GARDEN_DEBOUNCE_MS);
+  }, [storageKey, profile?.id]);
+
   // ── Place tile (synchronous optimistic update) ────────────────────────────
   const placeTile = useCallback((tileType, gridX, gridY, tileId) => {
     const qty = getQuantity(tileType);
@@ -181,21 +211,11 @@ export default function Garden() {
     }
     const id = tileId ?? `t_${Math.random().toString(36).slice(2, 9)}`;
     const next = [...tilesRef.current, { id, type: tileType, x: gridX, y: gridY }];
-    commitTiles(next);                // instant UI
-    decrementInstance("plant", tileType);  // instant local, bg DB sync
-
-    // Persist to DB (fire-and-forget — non-blocking)
-    if (supabase && profile?.id) {
-      supabase.rpc("place_garden_tile", {
-        p_plant_id: tileType,
-        p_grid_x: gridX,
-        p_grid_y: gridY,
-      }).then(({ error }) => {
-        if (error) console.warn("[Garden] place_garden_tile:", error.message);
-      });
-    }
+    commitTiles(next);                        // instant UI + isDirty update
+    decrementInstance("plant", tileType);     // instant local state, debounced DB
+    scheduleSyncGarden(next);                 // localStorage now, DB after quiet
     return true;
-  }, [getQuantity, commitTiles, decrementInstance, addToast, profile?.id]);
+  }, [getQuantity, commitTiles, decrementInstance, scheduleSyncGarden, addToast, profile?.id]);
 
   // ── Remove tile (synchronous optimistic update) ───────────────────────────
   const removeTile = useCallback((gridX, gridY) => {
@@ -203,22 +223,12 @@ export default function Garden() {
     if (idx === -1) return;
     const tile = tilesRef.current[idx];
     const next = [...tilesRef.current]; next.splice(idx, 1);
-    commitTiles(next);                           // instant UI
-    restoreInstance("plant", tile.type);         // instant local, bg DB sync
+    commitTiles(next);                        // instant UI
+    restoreInstance("plant", tile.type);      // instant local state, debounced DB
     setContextMenu(null);
+    scheduleSyncGarden(next);                 // localStorage now, DB after quiet
     addToast(`${tile.type.charAt(0).toUpperCase() + tile.type.slice(1)} returned to inventory 🌱`, "success");
-
-    // Persist to DB (fire-and-forget)
-    if (supabase && profile?.id) {
-      supabase.rpc("remove_garden_tile", {
-        p_plant_id: tile.type,
-        p_grid_x: gridX,
-        p_grid_y: gridY,
-      }).then(({ error }) => {
-        if (error) console.warn("[Garden] remove_garden_tile:", error.message);
-      });
-    }
-  }, [findTileAt, commitTiles, restoreInstance, addToast, profile?.id]);
+  }, [findTileAt, commitTiles, restoreInstance, scheduleSyncGarden, addToast]);
 
   // ── Manual save (bulk) ────────────────────────────────────────────────────
   const saveLayout = useCallback(async () => {
@@ -259,42 +269,72 @@ export default function Garden() {
     navigate("/");
   }, [isDirty, navigate]);
 
-  // ── Load saved layout ─────────────────────────────────────────────────────
+  // ── Load garden layout — LOCAL FIRST, then hydrate from DB ───────────────
+  //
+  // Step 1 (synchronous): read localStorage → paint the canvas immediately.
+  //         User sees their garden in < 1 ms, no spinner, no flicker.
+  // Step 2 (async):       fetch Supabase in the background.
+  //         If DB has more recent data, update silently and refresh localStorage.
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      let loaded = null, parsedCamera = null;
-      if (supabase && profile?.id) {
-        try {
-          const { data, error } = await supabase.from("garden_instances").select("plant_id,grid_x,grid_y").eq("user_id", profile.id);
-          if (!error && data?.length) loaded = data.map((r, i) => ({ id: `db_${i}`, type: r.plant_id, x: Number(r.grid_x), y: Number(r.grid_y) }));
-        } catch { }
-      }
-      if (!loaded) {
-        try {
-          const raw = localStorage.getItem(storageKey);
-          if (raw) { const p = JSON.parse(raw); if (Array.isArray(p?.tiles)) { loaded = p.tiles; parsedCamera = p.camera; } }
-        } catch { }
-      }
-      if (cancelled) return;
-      const finalTiles = normalizeTiles(loaded ?? []);
-      setTimeout(() => {
-        if (parsedCamera) {
-          cameraRef.current = {
-            x: Number.isFinite(parsedCamera.x) ? parsedCamera.x : DEFAULT_CAMERA.x,
-            y: Number.isFinite(parsedCamera.y) ? parsedCamera.y : DEFAULT_CAMERA.y,
-            zoom: Math.min(TILE.maxZoom, Math.max(TILE.minZoom, parsedCamera.zoom || DEFAULT_CAMERA.zoom)),
-          };
-          setZoomUi(cameraRef.current.zoom);
+
+    // ── Step 1: instant local paint ─────────────────────────────────────────
+    let parsedCamera = null;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (Array.isArray(p?.tiles) && p.tiles.length > 0) {
+          const localTiles = normalizeTiles(p.tiles);
+          parsedCamera = p.camera;
+          if (parsedCamera) {
+            cameraRef.current = {
+              x: Number.isFinite(parsedCamera.x) ? parsedCamera.x : DEFAULT_CAMERA.x,
+              y: Number.isFinite(parsedCamera.y) ? parsedCamera.y : DEFAULT_CAMERA.y,
+              zoom: Math.min(TILE.maxZoom, Math.max(TILE.minZoom, parsedCamera.zoom || DEFAULT_CAMERA.zoom)),
+            };
+            setZoomUi(cameraRef.current.zoom);
+          }
+          tilesRef.current = localTiles;
+          setTiles(localTiles);
+          savedSnapshotRef.current = snapshotTiles(localTiles);
+          setIsDirty(false);
+          dirtyRef.current = true;
         }
-        tilesRef.current = finalTiles;
-        setTiles(finalTiles);
-        savedSnapshotRef.current = snapshotTiles(finalTiles);
-        setIsDirty(false);
-        dirtyRef.current = true;
-      }, 0);
-    }
-    load();
+      }
+    } catch { }
+
+    // ── Step 2: background DB hydration ────────────────────────────────────
+    if (!supabase || !profile?.id) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("garden_instances")
+          .select("plant_id, grid_x, grid_y")
+          .eq("user_id", profile.id);
+        if (cancelled || error || !data) return;
+
+        const dbTiles = normalizeTiles(
+          data.map((r, i) => ({ id: `db_${i}`, type: r.plant_id, x: Number(r.grid_x), y: Number(r.grid_y) }))
+        );
+        // Only overwrite local state if DB has tiles (DB is authoritative)
+        if (dbTiles.length > 0) {
+          tilesRef.current = dbTiles;
+          setTiles(dbTiles);
+          savedSnapshotRef.current = snapshotTiles(dbTiles);
+          setIsDirty(false);
+          dirtyRef.current = true;
+          // Refresh localStorage to match DB
+          try {
+            localStorage.setItem(storageKey, JSON.stringify({
+              version: 2, savedAt: new Date().toISOString(),
+              tiles: dbTiles, camera: { ...cameraRef.current },
+            }));
+          } catch { }
+        }
+      } catch { }
+    })();
+
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, profile?.id]);

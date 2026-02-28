@@ -1,183 +1,248 @@
 import React, { useMemo, useState } from "react";
-import { BarChart3, CalendarClock, CheckCircle2, Download, Sparkles } from "lucide-react";
+import {
+  BarChart3, CalendarClock, CheckCircle2, Download, Sparkles,
+  Lock, Leaf, Trees, Mountain, XCircle, TrendingUp, Flame,
+  Zap, Shield,
+} from "lucide-react";
 
-const features = [
-  "Advanced focus analytics dashboard (focus score, distraction trend, completion rate)",
-  "Weekly and monthly performance reports with CSV export",
-  "Unlimited activity history and deep session drill-downs",
-  "Streak-risk alerts and personalized productivity suggestions",
-  "Priority support and early access to upcoming premium tools",
+/* ── Asset previews (emoji stand-ins — swap for real PNGs once available) ── */
+const PREMIUM_PLANTS = [
+  { emoji: "🌸", name: "Sakura", rarity: "Rare" },
+  { emoji: "🌲", name: "Ancient Oak", rarity: "Legendary" },
+  { emoji: "🌴", name: "Tropical Palm", rarity: "Uncommon" },
+  { emoji: "❄️", name: "Frost Fern", rarity: "Legendary" },
+  { emoji: "🔥", name: "Ember Root", rarity: "Mythical" },
 ];
 
+const RARITY_COLOR = {
+  Uncommon: "text-green-400 bg-green-400/10 border-green-400/20",
+  Rare: "text-blue-400  bg-blue-400/10  border-blue-400/20",
+  Legendary: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  Mythical: "text-amber-400 bg-amber-400/10  border-amber-400/20",
+};
+
+/* ── Feature lists ───────────────────────────────────────────────────────── */
+const FREE_FEATURES = [
+  "Unlimited focus & break sessions",
+  "Stopwatch and Pomodoro modes",
+  "Basic activity history (7 days)",
+  "Isometric garden (3 starter plants)",
+  "YouTube background videos",
+  "Local music file player",
+  "Streak tracking",
+];
+
+const FREE_MISSING = [
+  "Detailed analytics dashboard",
+  "Weekly / monthly reports + CSV export",
+  "Premium trees & land species",
+  "Session drill-downs & distraction trends",
+  "Streak-risk alerts",
+  "Priority support",
+];
+
+const PRO_FEATURES = [
+  { icon: <BarChart3 size={14} />, text: "Advanced focus analytics dashboard (focus score, completion rate, distraction trend)" },
+  { icon: <TrendingUp size={14} />, text: "Weekly & monthly performance reports with CSV export" },
+  { icon: <CalendarClock size={14} />, text: "Full session history with per-session drill-downs" },
+  { icon: <Flame size={14} />, text: "Streak-risk alerts & personalized productivity suggestions" },
+  { icon: <Trees size={14} />, text: "Exclusive Premium Trees — Sakura, Ancient Oak, Frost Fern, Ember Root…" },
+  { icon: <Mountain size={14} />, text: "Exclusive Island Backgrounds & premium land varieties" },
+  { icon: <Zap size={14} />, text: "Unlimited garden size with priority tile slots" },
+  { icon: <Download size={14} />, text: "CSV & JSON data export of all sessions" },
+  { icon: <Shield size={14} />, text: "Priority support & early feature access" },
+];
+
+/* ── Component ───────────────────────────────────────────────────────────── */
 const PricingPlans = ({ theme = "dark" }) => {
   const [billing, setBilling] = useState("yearly");
-  const monthlyActive = billing === "monthly";
-  const yearlyActive = billing === "yearly";
 
   const pricing = useMemo(() => {
-    const monthlyPrice = 7.99;
-    const yearlyPrice = 79;
-    const monthlyYearCost = monthlyPrice * 12;
-    const yearlySavings = (monthlyYearCost - yearlyPrice).toFixed(2);
-    const yearlyEquivalent = (yearlyPrice / 12).toFixed(2);
-
+    const monthly = 7.99;
+    const yearly = 79;
     return {
-      monthlyPrice: monthlyPrice.toFixed(2),
-      yearlyPrice: yearlyPrice.toFixed(2),
-      yearlySavings,
-      yearlyEquivalent,
+      monthly: monthly.toFixed(2),
+      yearly: yearly.toFixed(2),
+      yearlyMonthly: (yearly / 12).toFixed(2),
+      yearlySavings: (monthly * 12 - yearly).toFixed(2),
     };
   }, []);
 
+  const isYearly = billing === "yearly";
+  const price = isYearly ? pricing.yearlyMonthly : pricing.monthly;
+
   return (
-    <section className="w-full max-w-5xl mx-auto px-2 sm:px-4 pb-4">
-      <div className="neon-card p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-400/80 font-semibold">
-              Upgrade
-            </p>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight mt-1">
-              PlantPomo Pro
-            </h2>
-            <p className={`text-sm mt-2 ${theme === "dark" ? "text-white/65" : "text-slate-600"}`}>
-              Build stronger focus habits with premium insights and detailed analytics.
-            </p>
+    <section className="w-full max-w-6xl mx-auto px-2 sm:px-4 pb-8">
+      {/* ── Page header ────────────────────────────────────────────────── */}
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 text-xs font-semibold mb-4">
+          <Sparkles size={12} />
+          PlantPomo Pro
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white mb-3">
+          Grow further, focus deeper
+        </h1>
+        <p className="text-sm text-white/55 max-w-md mx-auto">
+          Unlock premium analytics and exclusive garden species to make every session count.
+        </p>
+
+        {/* Billing toggle */}
+        <div className="inline-flex p-1 mt-6 rounded-xl bg-white/[0.05] border border-white/10">
+          {["monthly", "yearly"].map((b) => (
+            <button
+              key={b}
+              onClick={() => setBilling(b)}
+              className={`px-5 py-2 text-sm font-semibold rounded-lg capitalize transition-all ${billing === b
+                  ? "bg-emerald-500/20 text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.15)]"
+                  : "text-white/50 hover:text-white"
+                }`}
+            >
+              {b}
+              {b === "yearly" && (
+                <span className="ml-2 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-full">
+                  Save ${pricing.yearlySavings}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Pricing cards ──────────────────────────────────────────────── */}
+      <div className="grid md:grid-cols-2 gap-5 mb-8">
+
+        {/* FREE CARD */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 flex flex-col">
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Leaf size={16} className="text-white/40" />
+              <span className="text-sm font-bold text-white/60 uppercase tracking-widest">Free</span>
+            </div>
+            <p className="text-4xl font-black text-white/80 mb-1">$0</p>
+            <p className="text-xs text-white/35">Forever free. No card required.</p>
           </div>
 
-          <div className="inline-flex p-1 rounded-xl bg-white/5 border border-white/10">
-            <button
-              onClick={() => setBilling("monthly")}
-              className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors ${
-                billing === "monthly"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-white/60 hover:text-white"
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBilling("yearly")}
-              className={`px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors ${
-                billing === "yearly"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "text-white/60 hover:text-white"
-              }`}
-            >
-              Yearly
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <article
-            className={`rounded-2xl p-4 sm:p-5 ${
-              monthlyActive
-                ? "border border-emerald-400/45 bg-emerald-500/10 shadow-[0_0_30px_rgba(16,185,129,0.12)]"
-                : "border border-white/10 bg-white/[0.03]"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold">Monthly Pro</h3>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                Flexible
-              </span>
-            </div>
-            <p className="mt-3">
-              <span className="text-3xl font-black">${pricing.monthlyPrice}</span>
-              <span className="text-sm text-white/60"> / month</span>
-            </p>
-            <p className={`mt-2 text-xs ${theme === "dark" ? "text-white/55" : "text-slate-500"}`}>
-              Best for trying premium analytics with low commitment.
-            </p>
-            <button
-              className={`mt-4 w-full rounded-xl py-2.5 text-sm font-semibold border transition-colors ${
-                monthlyActive
-                  ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-200"
-                  : "border-white/15 bg-white/5 hover:bg-white/10"
-              }`}
-            >
-              {monthlyActive ? "Selected" : "Choose Monthly"}
-            </button>
-          </article>
-
-          <article
-            className={`rounded-2xl p-4 sm:p-5 shadow-[0_0_30px_rgba(16,185,129,0.12)] ${
-              yearlyActive
-                ? "border border-emerald-400/45 bg-emerald-500/10"
-                : "border border-white/10 bg-white/[0.03]"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className={`text-base font-bold ${yearlyActive ? "text-emerald-200" : ""}`}>Yearly Pro</h3>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-200">
-                Most Popular
-              </span>
-            </div>
-            <p className="mt-3">
-              <span className="text-3xl font-black text-emerald-200">${pricing.yearlyEquivalent}</span>
-              <span className="text-sm text-emerald-100/80"> / month</span>
-            </p>
-            <p className="text-xs text-emerald-100/80 mt-1">
-              Billed yearly at ${pricing.yearlyPrice} (save ${pricing.yearlySavings} / year)
-            </p>
-            <p className={`mt-2 text-xs ${theme === "dark" ? "text-emerald-100/80" : "text-emerald-800/80"}`}>
-              Best value for users who want long-term progress insights.
-            </p>
-            <button
-              className={`mt-4 w-full rounded-xl py-2.5 text-sm font-bold transition-colors ${
-                yearlyActive
-                  ? "bg-emerald-400 text-emerald-950 hover:bg-emerald-300"
-                  : "border border-white/15 bg-white/5 text-white hover:bg-white/10"
-              }`}
-            >
-              {yearlyActive ? "Selected" : "Choose Yearly"}
-            </button>
-          </article>
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-          <p className="text-sm font-bold mb-3">What Pro unlocks</p>
-          <ul className="grid gap-2.5 md:grid-cols-2">
-            {features.map((item) => (
-              <li key={item} className="flex items-start gap-2 text-sm text-white/75">
-                <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
-                <span>{item}</span>
+          {/* Free features */}
+          <ul className="flex flex-col gap-2 mb-5 flex-1">
+            {FREE_FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-2 text-xs text-white/55">
+                <CheckCircle2 size={13} className="text-white/25 shrink-0 mt-0.5" />
+                {f}
+              </li>
+            ))}
+            {FREE_MISSING.map((f) => (
+              <li key={f} className="flex items-start gap-2 text-xs text-white/25 line-through">
+                <XCircle size={13} className="text-white/15 shrink-0 mt-0.5" />
+                {f}
               </li>
             ))}
           </ul>
+
+          <button className="w-full py-3 rounded-xl border border-white/15 bg-white/5 text-white/50 font-semibold text-sm cursor-default">
+            Current Plan
+          </button>
         </div>
 
-        <div className="mt-5 grid gap-2.5 sm:grid-cols-3 text-xs">
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 flex items-center gap-2">
-            <BarChart3 size={14} className="text-emerald-400" />
-            <span className="text-white/70">Detailed Analytics</span>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 flex items-center gap-2">
-            <Download size={14} className="text-emerald-400" />
-            <span className="text-white/70">CSV Exports</span>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 flex items-center gap-2">
-            <CalendarClock size={14} className="text-emerald-400" />
-            <span className="text-white/70">Priority Roadmap Access</span>
+        {/* PRO CARD */}
+        <div className="relative rounded-2xl overflow-hidden flex flex-col">
+          {/* Glow border */}
+          <div className="absolute inset-0 rounded-2xl ring-1 ring-emerald-400/40 shadow-[0_0_40px_rgba(52,211,153,0.12),inset_0_0_40px_rgba(52,211,153,0.04)]" />
+
+          <div className="relative bg-gradient-to-b from-[#071a0f]/95 to-[#040d08]/98 p-6 flex flex-col flex-1">
+            {/* Best Value badge */}
+            <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-[#39ff14]/15 border border-[#39ff14]/30 text-[#39ff14] text-[10px] font-bold uppercase tracking-widest">
+              Best Value
+            </div>
+
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={16} className="text-emerald-400" />
+                <span className="text-sm font-bold text-emerald-300 uppercase tracking-widest">Pro</span>
+              </div>
+              <div className="flex items-end gap-2">
+                <p className="text-4xl font-black text-white">${price}</p>
+                <span className="text-sm text-white/50 mb-1">/ month</span>
+              </div>
+              {isYearly ? (
+                <p className="text-xs text-emerald-300/70 mt-1">
+                  Billed ${pricing.yearly} / year — saves ${pricing.yearlySavings}
+                </p>
+              ) : (
+                <p className="text-xs text-white/35 mt-1">Billed monthly</p>
+              )}
+            </div>
+
+            {/* Pro features */}
+            <ul className="flex flex-col gap-2.5 mb-6 flex-1">
+              {PRO_FEATURES.map(({ icon, text }) => (
+                <li key={text} className="flex items-start gap-2.5 text-xs text-white/75">
+                  <span className="text-emerald-400 shrink-0 mt-0.5">{icon}</span>
+                  {text}
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <button className="relative w-full py-3.5 rounded-xl font-bold text-sm text-black overflow-hidden group transition-all active:scale-[0.98]">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-[#39ff14] group-hover:brightness-110 transition-all" />
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.35),transparent_70%)] transition-opacity" />
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                <Sparkles size={15} />
+                {isYearly ? `Get Pro — $${pricing.yearlyMonthly}/mo` : `Get Pro — $${pricing.monthly}/mo`}
+              </span>
+            </button>
+
+            <p className="text-center text-[10px] text-white/25 mt-3">
+              7-day free trial · Cancel anytime · No hidden fees
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px]">
-          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 border border-white/15 bg-white/[0.03] text-white/65">
-            <Sparkles size={12} className="text-emerald-400" />
-            7-day free trial
-          </span>
-          <span className="inline-flex rounded-full px-2.5 py-1 border border-white/15 bg-white/[0.03] text-white/65">
-            Cancel anytime
-          </span>
-          <span className="inline-flex rounded-full px-2.5 py-1 border border-white/15 bg-white/[0.03] text-white/65">
-            Checkout integration coming next
-          </span>
+      {/* ── Premium Species showcase ────────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 mb-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Lock size={14} className="text-amber-400" />
+          <p className="text-sm font-bold text-white/80">Premium Garden Species</p>
+          <span className="ml-auto text-xs text-white/30">Pro exclusive</span>
         </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {PREMIUM_PLANTS.map(({ emoji, name, rarity }) => (
+            <div key={name} className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05] hover:border-white/10 transition-colors">
+              <span className="text-3xl">{emoji}</span>
+              <span className="text-[11px] font-semibold text-white/70">{name}</span>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${RARITY_COLOR[rarity]}`}>
+                {rarity}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-        <p className={`mt-3 text-[11px] ${theme === "dark" ? "text-white/45" : "text-slate-500"}`}>
-          Preview only: payment and billing logic will be connected in the next step.
+      {/* ── Analytics highlight ─────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 size={14} className="text-emerald-400" />
+          <p className="text-sm font-bold text-white/80">Detailed Analytics</p>
+          <span className="ml-auto text-xs text-white/30">Pro exclusive</span>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          {[
+            { icon: <TrendingUp size={14} />, label: "Focus Score", desc: "Daily focus quality score based on session consistency" },
+            { icon: <BarChart3 size={14} />, label: "Session Reports", desc: "Weekly & monthly breakdowns with CSV export" },
+            { icon: <Flame size={14} />, label: "Streak Alerts", desc: "Know before you break your streak with smart nudges" },
+          ].map(({ icon, label, desc }) => (
+            <div key={label} className="flex items-start gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+              <span className="text-emerald-400 mt-0.5 shrink-0">{icon}</span>
+              <div>
+                <p className="text-xs font-bold text-white/75">{label}</p>
+                <p className="text-[10px] text-white/35 mt-0.5 leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-white/25 text-center mt-4">
+          Preview only — payment integration launching next sprint.
         </p>
       </div>
     </section>

@@ -1,21 +1,38 @@
 /**
- * useInventory — Fast, optimistic inventory management.
+ * useInventory — Local-first, optimistic inventory management.
  *
- * Architecture:
- *  - All mutations update local state IMMEDIATELY (0 ms latency for the user).
- *  - Supabase calls fire in the background (fire-and-forget).
- *  - On fetch failure the state stays in place; a console warning is emitted.
+ * Performance architecture:
+ *
+ *  1. INSTANT FIRST PAINT
+ *     On mount, inventory is loaded from localStorage immediately (synchronous,
+ *     0 ms). The UI renders fully before any network request is made.
+ *
+ *  2. BACKGROUND HYDRATION
+ *     Supabase fetch runs in the background. When it resolves it silently
+ *     updates the map and writes the fresh data back to localStorage.
+ *
+ *  3. FULLY OPTIMISTIC MUTATIONS
+ *     decrementInstance / restoreInstance update local state synchronously
+ *     (the React state update happens before the function even returns).
+ *     The Supabase call is fire-and-forget — it NEVER blocks the UI.
+ *     localStorage is also updated synchronously so a page refresh shows the
+ *     correct quantity even before the background write completes.
+ *
+ *  4. DEBOUNCED DB WRITES FOR INVENTORY
+ *     Multiple rapid mutations (e.g. placing 5 tiles quickly) are collapsed
+ *     into a single Supabase upsert after a 1-second quiet period, reducing
+ *     API call count from N → 1.
  *
  * Exported shape:
  *   inventory        Map<itemId, { item_type, quantity }>
- *   ownedPlantIds    Set<string>  — plants with quantity > 0
- *   ownedLandIds     Set<string>  — lands  with quantity > 0
- *   readyPlantIds    Set<string>  — plants with quantity >= 1 (ready to place)
+ *   ownedPlantIds    Set<string>
+ *   ownedLandIds     Set<string>
+ *   readyPlantIds    Set<string>  — quantity >= 1
  *   getQuantity(id)  → number
- *   decrementInstance(type, id)   — synchronous optimistic -1, async DB sync
- *   restoreInstance(type, id)     — synchronous optimistic +1, async DB sync
- *   buyItem(type, id, cost)       → Promise<{ok, error?}>
- *   loading          boolean
+ *   decrementInstance(item_type, item_id)
+ *   restoreInstance(item_type, item_id)
+ *   buyItem(item_type, item_id, cost)  → Promise<{ok, error?}>
+ *   loading          boolean  (true only on very first network fetch)
  *   refetch          () => void
  */
 
@@ -23,8 +40,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_OWNED_PLANTS, DEFAULT_OWNED_LANDS } from "../components/tilesData";
 
-// Default quantity given to every free/default-owned item.
 const DEFAULT_QTY = 5;
+const DEBOUNCE_MS = 1200;   // collapse rapid mutations into 1 DB write
+const LS_KEY_PREFIX = "plantpomo:inventory:v1:";
+
+// ── Serialisation helpers (Map ↔ plain array for localStorage) ───────────────
+function mapToArray(m) {
+    return [...m.entries()].map(([item_id, v]) => ({ item_id, ...v }));
+}
+function arrayToMap(arr) {
+    const m = new Map();
+    for (const row of arr) m.set(row.item_id, { item_type: row.item_type, quantity: row.quantity });
+    return m;
+}
 
 function buildDefaultInventory() {
     const m = new Map();
@@ -33,17 +61,41 @@ function buildDefaultInventory() {
     return m;
 }
 
-export function useInventory(profile, refetchProfile) {
-    const [inventory, setInventory] = useState(buildDefaultInventory);
-    const [loading, setLoading] = useState(true);
+function readCache(userId) {
+    if (!userId) return null;
+    try {
+        const raw = localStorage.getItem(LS_KEY_PREFIX + userId);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return arrayToMap(parsed);
+    } catch {
+        return null;
+    }
+}
+function writeCache(userId, m) {
+    if (!userId) return;
+    try { localStorage.setItem(LS_KEY_PREFIX + userId, JSON.stringify(mapToArray(m))); }
+    catch { }
+}
 
-    // Stable ref so fire-and-forget closures see latest state
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useInventory(profile, refetchProfile) {
+    // ① Seed from localStorage (synchronous) so the UI is ready before any fetch
+    const [inventory, setInventory] = useState(() => {
+        const cached = readCache(profile?.id);
+        return cached ?? buildDefaultInventory();
+    });
+    const [loading, setLoading] = useState(!readCache(profile?.id));  // skip spinner if cache hit
+
+    // Stable refs
     const invRef = useRef(inventory);
+    const debounceRef = useRef(null);    // timer for coalesced DB writes
+    const pendingRef = useRef(new Map()); // item_id → latest quantity to write
+
     useEffect(() => { invRef.current = inventory; }, [inventory]);
 
-    // ── Derived sets ───────────────────────────────────────────────────────────
-    // These are re-computed on every inventory change — they are plain values,
-    // not hooks — so callers need to consume them from this hook's return value.
+    // ── Derived sets (recomputed each render, cheap) ──────────────────────────
     const ownedPlantIds = new Set(
         [...inventory.entries()].filter(([, v]) => v.item_type === "plant" && v.quantity > 0).map(([k]) => k)
     );
@@ -56,17 +108,51 @@ export function useInventory(profile, refetchProfile) {
 
     const getQuantity = useCallback((id) => invRef.current.get(id)?.quantity ?? 0, []);
 
-    // ── Helper: immutably update one item's quantity ───────────────────────────
-    const mutate = useCallback((id, delta) => {
+    // ── Core mutator (updates React state + localStorage synchronously) ────────
+    const mutate = useCallback((id, delta, item_type = "plant") => {
         setInventory(prev => {
-            const cur = prev.get(id) ?? { item_type: "plant", quantity: 0 };
+            const cur = prev.get(id) ?? { item_type, quantity: 0 };
             const next = new Map(prev);
             next.set(id, { ...cur, quantity: Math.max(0, cur.quantity + delta) });
+            // Write to localStorage immediately so a refresh shows the right value
+            writeCache(profile?.id, next);
             return next;
         });
-    }, []);
+    }, [profile?.id]);
 
-    // ── Fetch from Supabase ────────────────────────────────────────────────────
+    // ── Debounced bulk DB write ───────────────────────────────────────────────
+    // Instead of one Supabase call per tile placement, we collect all changes in
+    // pendingRef and flush them together after DEBOUNCE_MS of inactivity.
+    const scheduleDatabaseFlush = useCallback((item_id, item_type) => {
+        if (!supabase || !profile?.id) return;
+
+        // Record the latest known quantity for this item
+        pendingRef.current.set(item_id, item_type);
+
+        clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            const snapshot = invRef.current;
+            const batch = [...pendingRef.current.entries()];
+            pendingRef.current.clear();
+
+            // Build upsert rows from the latest local state
+            const rows = batch.map(([iid, itype]) => ({
+                user_id: profile.id,
+                item_type: itype,
+                item_id: iid,
+                quantity: snapshot.get(iid)?.quantity ?? 0,
+            }));
+
+            supabase
+                .from("user_inventory")
+                .upsert(rows, { onConflict: "user_id,item_id" })
+                .then(({ error }) => {
+                    if (error) console.warn("[useInventory] flush failed:", error.message);
+                });
+        }, DEBOUNCE_MS);
+    }, [profile?.id]);
+
+    // ── Fetch from Supabase (runs once in the background) ────────────────────
     const fetchInventory = useCallback(async () => {
         if (!supabase || !profile?.id) { setLoading(false); return; }
 
@@ -75,68 +161,52 @@ export function useInventory(profile, refetchProfile) {
             .select("item_type, item_id, quantity")
             .eq("user_id", profile.id);
 
-        if (error) { console.warn("[useInventory] fetch error:", error.message); setLoading(false); return; }
+        if (error) {
+            console.warn("[useInventory] fetch error:", error.message);
+            setLoading(false);
+            return;
+        }
 
-        const m = buildDefaultInventory();           // start from defaults
+        // Merge DB data on top of defaults
+        const m = buildDefaultInventory();
         for (const row of (data ?? [])) {
             const existing = m.get(row.item_id);
             if (existing) {
-                // Merge: default items just get the DB quantity merged in (or accumulated)
-                m.set(row.item_id, { ...existing, quantity: (existing.quantity || 0) + (row.quantity ?? 1) });
+                // Default-owned item — use the HIGHER of (default qty, DB qty)
+                // so focus-session growth is never hidden
+                m.set(row.item_id, { ...existing, quantity: Math.max(existing.quantity, row.quantity ?? 0) });
             } else {
                 m.set(row.item_id, { item_type: row.item_type, quantity: row.quantity ?? 1 });
             }
         }
+
         setInventory(m);
+        writeCache(profile.id, m);   // refresh the cache with authoritative data
         setLoading(false);
     }, [profile?.id]);
 
     useEffect(() => { fetchInventory(); }, [fetchInventory]);
 
+    // ── Re-seed from cache when user changes ─────────────────────────────────
+    useEffect(() => {
+        const cached = readCache(profile?.id);
+        if (cached) { setInventory(cached); setLoading(false); }
+        else { setInventory(buildDefaultInventory()); setLoading(true); }
+    }, [profile?.id]);
+
     // ── decrementInstance ─────────────────────────────────────────────────────
-    // Synchronously adjusts local state; fires DB update in the background.
     const decrementInstance = useCallback((item_type, item_id) => {
         const cur = invRef.current.get(item_id);
         if (!cur || cur.quantity < 1) return;
-
-        // Optimistic update — instant, no await
-        mutate(item_id, -1);
-
-        // Background sync (fire-and-forget)
-        if (supabase && profile?.id) {
-            supabase
-                .from("user_inventory")
-                .update({ quantity: Math.max(0, (cur.quantity - 1)) })
-                .eq("user_id", profile.id)
-                .eq("item_id", item_id)
-                .then(({ error }) => {
-                    if (error) console.warn("[useInventory] decrement sync failed:", error.message);
-                });
-        }
-    }, [mutate, profile?.id]);
+        mutate(item_id, -1, item_type);
+        scheduleDatabaseFlush(item_id, item_type);
+    }, [mutate, scheduleDatabaseFlush]);
 
     // ── restoreInstance ───────────────────────────────────────────────────────
     const restoreInstance = useCallback((item_type, item_id) => {
-        const cur = invRef.current.get(item_id) ?? { item_type, quantity: 0 };
-
-        // Optimistic update — instant
-        mutate(item_id, +1);
-
-        // Background sync
-        if (supabase && profile?.id) {
-            supabase
-                .from("user_inventory")
-                .upsert({
-                    user_id: profile.id,
-                    item_type,
-                    item_id,
-                    quantity: cur.quantity + 1,
-                }, { onConflict: "user_id,item_id" })
-                .then(({ error }) => {
-                    if (error) console.warn("[useInventory] restore sync failed:", error.message);
-                });
-        }
-    }, [mutate, profile?.id]);
+        mutate(item_id, +1, item_type);
+        scheduleDatabaseFlush(item_id, item_type);
+    }, [mutate, scheduleDatabaseFlush]);
 
     // ── buyItem ───────────────────────────────────────────────────────────────
     const buyItem = useCallback(async (item_type, item_id, cost) => {
@@ -147,8 +217,7 @@ export function useInventory(profile, refetchProfile) {
             p_cost: cost,
         });
         if (error) return { ok: false, error: error.message };
-
-        mutate(item_id, +1);   // grant 1 instance immediately
+        mutate(item_id, +1, item_type);
         refetchProfile?.();
         return { ok: true, data };
     }, [mutate, refetchProfile]);

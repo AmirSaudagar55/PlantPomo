@@ -640,71 +640,121 @@ const FocusCard = ({
 
       {/* ── SETTINGS MODAL ── */}
       {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          {/* Backdrop */}
           <button
             type="button"
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/70 backdrop-blur-md"
             aria-label="Close settings"
-            onClick={() => setSettingsOpen(false)}
+            onClick={() => { setDraftSettings(pomodoroSettings); setSettingsOpen(false); }}
           />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-[#0d1117]/95 p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-base font-semibold text-white">⏱ Timer Settings</div>
-              <button
-                type="button"
-                className="h-8 w-8 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 flex items-center justify-center text-sm"
-                aria-label="Close"
-                onClick={() => setSettingsOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
 
-            {runState !== "idle" && (
-              <div className="mb-3 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-xs">
-                ⚠ Changes will apply to the <strong>next phase</strong>, not the current running timer.
+          {/* Card */}
+          <div className="relative z-10 w-full max-w-md rounded-3xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.05)] animate-in zoom-in-95 duration-200">
+            {/* Neon top border glow */}
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#39ff14]/50 to-transparent" />
+
+            {/* Background */}
+            <div className="bg-[#07090e]/95 backdrop-blur-2xl p-6">
+
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-[#39ff14]/10 border border-[#39ff14]/20 flex items-center justify-center">
+                    <GearIcon />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-tight">Timer Settings</h2>
+                    <p className="text-[11px] text-white/35 mt-0.5">Customise your focus rhythm</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white flex items-center justify-center text-sm transition-all"
+                  aria-label="Close"
+                  onClick={() => { setDraftSettings(pomodoroSettings); setSettingsOpen(false); }}
+                >
+                  ✕
+                </button>
               </div>
-            )}
 
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                { label: "Focus Duration (min)", key: "focusDuration" },
-                { label: "Short Break (min)", key: "shortBreakDuration" },
-                { label: "Long Break (min)", key: "longBreakDuration" },
-                { label: "Sessions Before Long Break", key: "sessionsBeforeLongBreak" },
-              ].map(({ label, key }) => (
-                <label key={key} className="text-xs text-white/80">
-                  {label}
-                  <input
-                    type="number"
-                    min="1"
-                    value={draftSettings[key]}
-                    onChange={(e) => setDraftSettings((prev) => ({ ...prev, [key]: e.target.value }))}
-                    className="mt-1 w-full rounded-md border border-white/20 bg-black/40 px-2 py-2 text-sm text-white outline-none focus:border-green-500/50"
-                  />
-                </label>
-              ))}
-            </div>
+              {/* Active-timer warning */}
+              {runState !== "idle" && (
+                <div className="mb-4 flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-amber-300">
+                  <span className="text-base mt-px">🔒</span>
+                  <p className="text-xs leading-relaxed">
+                    <span className="font-semibold">Timer is active.</span>{" "}
+                    Changes will apply to the <em>next</em> phase — not the currently running timer.
+                  </p>
+                </div>
+              )}
 
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs rounded-md border border-white/20 text-white/80 hover:bg-white/10"
-                onClick={() => setSettingsOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs rounded-md bg-green-500/20 border border-green-500/40 text-green-300 hover:bg-green-500/30"
-                onClick={saveSettings}
-              >
-                Save
-              </button>
+              {/* Sliders */}
+              <div className="flex flex-col gap-4">
+                {[
+                  { label: "Focus Duration", key: "focusDuration", icon: "🎯", color: "#39ff14", max: 120 },
+                  { label: "Short Break", key: "shortBreakDuration", icon: "☕", color: "#38bdf8", max: 30 },
+                  { label: "Long Break", key: "longBreakDuration", icon: "🌿", color: "#a78bfa", max: 60 },
+                  { label: "Sessions Before Long Break", key: "sessionsBeforeLongBreak", icon: "🔁", color: "#fb923c", max: 10, unit: "sessions" },
+                ].map(({ label, key, icon, color, max, unit }) => {
+                  const val = Number(draftSettings[key]) || 1;
+                  const pct = Math.round((val / max) * 100);
+                  return (
+                    <div key={key} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{icon}</span>
+                          <span className="text-xs font-semibold text-white/75">{label}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-base font-black tabular-nums" style={{ color }}>{val}</span>
+                          <span className="text-[10px] text-white/30">{unit ?? "min"}</span>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max={max}
+                        value={val}
+                        disabled={runState !== "idle" && key !== "sessionsBeforeLongBreak"}
+                        onChange={(e) => setDraftSettings((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{
+                          background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, rgba(255,255,255,0.08) ${pct}%, rgba(255,255,255,0.08) 100%)`,
+                          accentColor: color,
+                        }}
+                      />
+                      <div className="flex justify-between mt-1.5">
+                        <span className="text-[9px] text-white/20">1</span>
+                        <span className="text-[9px] text-white/20">{max}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer buttons */}
+              <div className="flex items-center gap-2 mt-5">
+                <button
+                  type="button"
+                  className="flex-1 py-2.5 text-xs font-semibold rounded-xl border border-white/10 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white transition-all"
+                  onClick={() => { setDraftSettings(pomodoroSettings); setSettingsOpen(false); }}
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  className="flex-[2] py-2.5 text-xs font-bold rounded-xl bg-[#39ff14]/15 border border-[#39ff14]/30 text-[#39ff14] hover:bg-[#39ff14]/25 transition-all shadow-[0_0_20px_rgba(57,255,20,0.08)]"
+                  onClick={saveSettings}
+                >
+                  Save Settings
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
 
       {/* ── PLANT SHOP SIDEBAR ── */}
       <PlantShopSidebar

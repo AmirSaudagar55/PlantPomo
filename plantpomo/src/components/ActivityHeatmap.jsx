@@ -51,40 +51,52 @@ function getLevel(mins) {
 
 /* ── Date utilities ───────────────────────────────────────────────────────── */
 function toYMD(date) {
-    return date.toISOString().slice(0, 10);
+    // Use local date parts to avoid UTC-offset shifting the displayed date
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
 }
 
-/** Returns every day in the grid (padded to start on Sunday) */
-function buildGrid() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const end = new Date(today);
+/**
+ * Build the full grid of days.
+ * @param {string} todayYMD - "YYYY-MM-DD" string for today (used as memo key)
+ * Always ends on the REAL today so the current month is never cut off.
+ */
+function buildGrid(todayYMD) {
+    // Reconstruct today from the YMD string so we don't get DST creep
+    const [y, mo, d] = todayYMD.split("-").map(Number);
+    const today = new Date(y, mo - 1, d, 0, 0, 0, 0);
 
+    // 365 days back from today (inclusive of today)
     const start = new Date(today);
-    start.setDate(start.getDate() - 364); // 365 days total (inclusive)
+    start.setDate(start.getDate() - 364);
 
-    // Pad back to the previous Sunday so the grid aligns correctly
+    // Pad back to the Sunday that starts this week so columns align
     const padded = new Date(start);
-    padded.setDate(padded.getDate() - padded.getDay());
+    padded.setDate(padded.getDate() - padded.getDay()); // getDay() = 0 on Sunday
 
     const grid = [];
     const cur = new Date(padded);
-    while (cur <= end) {
+    while (cur <= today) {
         grid.push(new Date(cur));
         cur.setDate(cur.getDate() + 1);
     }
     return grid;
 }
 
-/** Collect month label + the week-column it first appears in */
+/** Collect month label + the week-column index it first appears in */
 function monthLabels(days) {
     const seen = [];
-    let last = -1;
+    let lastMonth = -1;
     days.forEach((d, i) => {
         const m = d.getMonth();
-        if (m !== last) {
-            last = m;
-            seen.push({ col: Math.floor(i / 7), label: d.toLocaleString("default", { month: "short" }) });
+        if (m !== lastMonth) {
+            lastMonth = m;
+            seen.push({
+                col: Math.floor(i / 7),
+                label: d.toLocaleString("default", { month: "short" }),
+            });
         }
     });
     return seen;
@@ -105,10 +117,24 @@ const ActivityHeatmap = ({ open, onClose, userId }) => {
     const [sessMap, setSessMap] = useState({});   // { "YYYY-MM-DD": minutes }
     const [loading, setLoading] = useState(false);
     const [tooltip, setTooltip] = useState(null); // { date, mins, rect }
+    // Ref to the horizontal-scroll container — auto-scroll to the right so
+    // today (the last column) is always fully visible when the panel opens.
+    const scrollRef = useRef(null);
 
-    const days = useMemo(() => buildGrid(), []);
+    // Compute today's local YMD once — used as the memo key so the grid
+    // always reflects the REAL current day (handles midnight rollovers).
+    const todayYMD = toYMD(new Date());
+
+    const days = useMemo(() => buildGrid(todayYMD), [todayYMD]);
     const labels = useMemo(() => monthLabels(days), [days]);
     const numCols = Math.ceil(days.length / 7);
+
+    // Pre-compute the earliest visible date string for the isPadded check
+    const startYMD = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 364);
+        return toYMD(d);
+    }, [todayYMD]);
 
     /* fetch focus_sessions --------------------------------------------------- */
     const fetch = useCallback(async () => {
@@ -138,10 +164,20 @@ const ActivityHeatmap = ({ open, onClose, userId }) => {
         if (open) fetch();
     }, [open, fetch]);
 
+    // Whenever the heatmap opens (or finishes loading), jump the scroll
+    // container to its rightmost position so today is always in view.
+    useEffect(() => {
+        if (!open) return;
+        requestAnimationFrame(() => {
+            if (scrollRef.current)
+                scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+        });
+    }, [open, loading]);   // re-run after loading finishes (grid re-renders)
+
     if (!open) return null;
 
     /* derived stats ---------------------------------------------------------- */
-    const todayYMD = toYMD(new Date());
+    // todayYMD is already declared above (used as memo key)
     const totalMins = Object.values(sessMap).reduce((a, b) => a + b, 0);
     const activeDays = Object.values(sessMap).filter((v) => v > 0).length;
 
@@ -161,7 +197,7 @@ const ActivityHeatmap = ({ open, onClose, userId }) => {
             {/* Card */}
             <div
                 className="absolute bottom-[68px] left-6 rounded-2xl border border-white/10 bg-[#07090e]/95 backdrop-blur-3xl shadow-[0_24px_80px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.04),0_0_60px_rgba(57,255,20,0.03)]"
-                style={{ width: "min(740px, calc(100vw - 48px))", padding: "20px 22px 18px" }}
+                style={{ width: "min(820px, calc(100vw - 48px))", padding: "20px 22px 18px" }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header row */}
@@ -206,9 +242,10 @@ const ActivityHeatmap = ({ open, onClose, userId }) => {
                     </div>
                 ) : (
                     <>
-                        {/* Grid area */}
-                        <div className="overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                            <div className="flex gap-2" style={{ minWidth: numCols * 13 + 28 }}>
+                        {/* Grid area — scrolls horizontally; auto-jumps to today on open */}
+                        <div ref={scrollRef} className="overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                            {/* minWidth ensures all columns render even if container clips them */}
+                            <div className="flex gap-2" style={{ minWidth: numCols * 13 + 32 }}>
 
                                 {/* Day-of-week labels */}
                                 <div className="flex flex-col shrink-0 pt-[22px]" style={{ gap: 3 }}>
@@ -260,7 +297,7 @@ const ActivityHeatmap = ({ open, onClose, userId }) => {
                                         {days.map((day, idx) => {
                                             const ymd = toYMD(day);
                                             const future = ymd > todayYMD;
-                                            const isPadded = ymd < toYMD((() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 364); return d; })());
+                                            const isPadded = ymd < startYMD;
                                             const mins = sessMap[ymd] || 0;
                                             const lvl = LEVELS[getLevel(mins)];
                                             const isToday = ymd === todayYMD;
