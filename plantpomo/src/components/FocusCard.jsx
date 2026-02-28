@@ -212,6 +212,14 @@ const FocusCard = ({
     return () => window.clearInterval(intervalRef.current);
   }, [runState]);
 
+  /* ─── Broadcast the active plant to Index › TodoList ─── */
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("focus:tile:change", { detail: { plantId: selectedTile?.id ?? null } })
+    );
+  }, [selectedTile?.id]);
+
+
   /* ─── Auto-advance Pomodoro when countdown hits 0 ─── */
   useEffect(() => {
     if (mode !== "pomodoro" || runState !== "running") return;

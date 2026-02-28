@@ -4,7 +4,8 @@ import FocusCard from "@/components/FocusCard";
 import VideoBackground from "@/components/VideoBackground";
 import YouTubeLinkPopup from "@/components/YouTubeLinkPopup";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
-import { Trash2, LayoutGrid } from "lucide-react";
+import TodoList from "@/components/TodoList";
+import { Trash2, LayoutGrid, ListTodo } from "lucide-react";
 import { useProfile } from "@/lib/useProfile";
 import { useInventory } from "@/lib/useInventory";
 
@@ -24,6 +25,9 @@ const Index = () => {
   const [videoId, setVideoId] = useState(null);
   const [ytPopupOpen, setYtPopupOpen] = useState(false);
   const [heatMapOpen, setHeatMapOpen] = useState(false);
+  const [todoOpen, setTodoOpen] = useState(false);
+  // Receives the currently selected plant from FocusCard via a custom event
+  const [activePlantId, setActivePlantId] = useState(null);
 
   // default unmuted — user can mute via button
   const [isMuted, setIsMuted] = useState(false);
@@ -39,6 +43,13 @@ const Index = () => {
     };
     window.addEventListener("video:visibilitychange", handler);
     return () => window.removeEventListener("video:visibilitychange", handler);
+  }, []);
+
+  // Listen for the currently selected plant broadcast by FocusCard
+  useEffect(() => {
+    const handler = (e) => setActivePlantId(e?.detail?.plantId ?? null);
+    window.addEventListener("focus:tile:change", handler);
+    return () => window.removeEventListener("focus:tile:change", handler);
   }, []);
 
   // Listen for volume changes broadcast by MusicMenu
@@ -194,15 +205,26 @@ const Index = () => {
         </main>
 
         <footer className="flex items-center justify-between px-6 py-4 gap-4">
-          {/* Activity Heatmap toggle — bottom left */}
-          <button
-            id="heatmap-toggle-btn"
-            title="Focus Activity"
-            onClick={() => setHeatMapOpen((v) => !v)}
-            className={`p-3 rounded-xl transition-all heatmap-btn ${heatMapOpen ? "heatmap-active" : ""}`}
-          >
-            <LayoutGrid size={18} />
-          </button>
+          {/* Bottom-left cluster: Heatmap + Todo */}
+          <div className="flex items-center gap-2">
+            <button
+              id="heatmap-toggle-btn"
+              title="Focus Activity"
+              onClick={() => setHeatMapOpen((v) => !v)}
+              className={`p-3 rounded-xl transition-all heatmap-btn ${heatMapOpen ? "heatmap-active" : ""}`}
+            >
+              <LayoutGrid size={18} />
+            </button>
+
+            <button
+              id="todo-toggle-btn"
+              title="Tasks"
+              onClick={() => setTodoOpen((v) => !v)}
+              className={`p-3 rounded-xl transition-all heatmap-btn ${todoOpen ? "heatmap-active" : ""}`}
+            >
+              <ListTodo size={18} />
+            </button>
+          </div>
 
           {/* Trash — bottom right */}
           <button
@@ -220,6 +242,14 @@ const Index = () => {
           open={heatMapOpen}
           onClose={() => setHeatMapOpen(false)}
           userId={profile?.id ?? null}
+        />
+
+        {/* Todo panel */}
+        <TodoList
+          open={todoOpen}
+          onClose={() => setTodoOpen(false)}
+          userId={profile?.id ?? null}
+          activePlantId={activePlantId}
         />
       </div>
 
