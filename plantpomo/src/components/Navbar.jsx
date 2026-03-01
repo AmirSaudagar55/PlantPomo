@@ -8,17 +8,20 @@ import {
   Droplets,
   Store,
   Flame,
+  Lock,
   LogOut,
   Sparkles,
   X,
   Trees,
   Youtube,
+  Trophy,
 } from "lucide-react";
 
 import { Link } from "react-router-dom";
 import ShowHideVideoToggle from "./ShowHideVideoToggle";
 import MusicMenu from "./MusicMenu";
 import PricingPlans from "./PricingPlans";
+import LeaderboardMenu from "./LeaderboardMenu";
 import { useAuth } from "../context/AuthContext";
 
 const GoogleIcon = () => (
@@ -38,8 +41,11 @@ const Navbar = ({
   toggleMute = () => { },
   onOpenYouTubePopup = () => { },
   profile = null,
+  isTimerRunning = false,
 }) => {
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [gardenBlockMsg, setGardenBlockMsg] = useState(false);
 
   const {
     user,
@@ -87,21 +93,64 @@ const Navbar = ({
             <span>Store</span>
           </button>
 
-          <Link
-            to="/garden"
-            title="Open Garden"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-lime-900/30 border border-lime-500/25 text-lime-300 text-sm font-semibold hover:bg-lime-800/30 transition-colors"
-          >
-            <Trees size={14} />
-            <span>Garden</span>
-          </Link>
+          {/* Garden button — blocked while the focus timer is running */}
+          <div className="relative">
+            <Link
+              to="/garden"
+              title={isTimerRunning ? "Pause or reset the timer before entering the Garden" : "Open Garden"}
+              onClick={(e) => {
+                if (isTimerRunning) {
+                  e.preventDefault();
+                  setGardenBlockMsg(true);
+                  setTimeout(() => setGardenBlockMsg(false), 2800);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-semibold transition-colors ${isTimerRunning
+                ? "bg-red-900/20 border-red-500/25 text-red-400/60 cursor-not-allowed"
+                : "bg-lime-900/30 border-lime-500/25 text-lime-300 hover:bg-lime-800/30"
+                }`}
+            >
+              <Trees size={14} />
+              <span>Garden</span>
+              {isTimerRunning && <Lock size={11} className="ml-0.5 text-red-400/60" />}
+            </Link>
+
+            {/* Inline block message */}
+            {gardenBlockMsg && (
+              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 w-56 px-3 py-2 rounded-xl bg-[#1a0808]/95 border border-red-500/30 text-red-300 text-xs text-center shadow-xl animate-[fadeIn_0.2s_ease]">
+                ⏱ Pause or reset the timer before entering the Garden.
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-900/30 border border-orange-500/20 text-orange-400 text-sm font-semibold select-none">
             <Flame size={14} className="shrink-0" />
             <span>{profile?.current_streak ?? 0}</span>
             <span className="text-orange-400/60 font-normal text-xs">{profile?.current_streak === 1 ? 'day streak' : 'day streak'}</span>
           </div>
-        </div>
+
+          {/* Weekly Leaderboard button */}
+          <div className="relative">
+            <button
+              onClick={() => setLeaderboardOpen(o => !o)}
+              title="Weekly Leaderboard"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all
+                ${leaderboardOpen
+                  ? "bg-amber-400/20 border-amber-400/40 text-amber-300 shadow-[0_0_14px_rgba(251,191,36,0.2)]"
+                  : "bg-amber-900/20 border-amber-500/20 text-amber-400 hover:bg-amber-900/30"
+                }`}
+            >
+              <Trophy size={13} className={leaderboardOpen ? "text-amber-300" : "text-amber-400"} />
+              <span className="hidden sm:inline">Leaderboard</span>
+            </button>
+
+            <LeaderboardMenu
+              open={leaderboardOpen}
+              onClose={() => setLeaderboardOpen(false)}
+              currentUserId={user?.id ?? null}
+            />
+          </div>
+        </div>{/* end centre group */}
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
@@ -114,13 +163,32 @@ const Navbar = ({
             <span className="sm:hidden">Pro</span>
           </button>
 
-          <button
-            className="p-2 rounded-lg bg-secondary hover:bg-border transition-colors"
-            aria-label="Analytics"
-            title="Analytics"
-          >
-            <BarChart3 size={16} className="text-muted-foreground" />
-          </button>
+          {/* Analytics — locked for free users */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                if (profile?.is_premium) {
+                  // future: open analytics panel
+                } else {
+                  setPricingOpen(true);
+                }
+              }}
+              className={`p-2 rounded-lg border transition-colors group ${profile?.is_premium
+                ? "bg-secondary hover:bg-border border-transparent"
+                : "bg-secondary hover:bg-purple-500/10 hover:border-purple-500/20 border-transparent"
+                }`}
+              aria-label="Analytics"
+              title={profile?.is_premium ? "Analytics" : "Upgrade to Pro to unlock Analytics"}
+            >
+              <BarChart3 size={16} className={profile?.is_premium ? "text-muted-foreground" : "text-purple-400/60 group-hover:text-purple-400 transition-colors"} />
+              {/* Lock badge for free users */}
+              {!profile?.is_premium && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-purple-500/80 flex items-center justify-center">
+                  <Lock size={7} className="text-white" />
+                </span>
+              )}
+            </button>
+          </div>
 
           <MusicMenu onOpenYouTubePopup={onOpenYouTubePopup} />
 

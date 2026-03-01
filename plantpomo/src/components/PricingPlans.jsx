@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
+import { getPricing } from "../lib/pricingTiers";
 import {
   BarChart3, CalendarClock, CheckCircle2, Download, Sparkles,
   Lock, Leaf, Trees, Mountain, XCircle, TrendingUp, Flame,
-  Zap, Shield,
+  Shield,
 } from "lucide-react";
 
 /* ── Asset previews (emoji stand-ins — swap for real PNGs once available) ── */
@@ -48,7 +49,6 @@ const PRO_FEATURES = [
   { icon: <Flame size={14} />, text: "Streak-risk alerts & personalized productivity suggestions" },
   { icon: <Trees size={14} />, text: "Exclusive Premium Trees — Sakura, Ancient Oak, Frost Fern, Ember Root…" },
   { icon: <Mountain size={14} />, text: "Exclusive Island Backgrounds & premium land varieties" },
-  { icon: <Zap size={14} />, text: "Unlimited garden size with priority tile slots" },
   { icon: <Download size={14} />, text: "CSV & JSON data export of all sessions" },
   { icon: <Shield size={14} />, text: "Priority support & early feature access" },
 ];
@@ -57,19 +57,15 @@ const PRO_FEATURES = [
 const PricingPlans = ({ theme = "dark" }) => {
   const [billing, setBilling] = useState("yearly");
 
+  // Read country code cached by useUserLocation (written on first login)
   const pricing = useMemo(() => {
-    const monthly = 7.99;
-    const yearly = 79;
-    return {
-      monthly: monthly.toFixed(2),
-      yearly: yearly.toFixed(2),
-      yearlyMonthly: (yearly / 12).toFixed(2),
-      yearlySavings: (monthly * 12 - yearly).toFixed(2),
-    };
+    const cc = (() => { try { return localStorage.getItem("plantpomo:country_code"); } catch { return null; } })();
+    return getPricing(cc);
   }, []);
 
   const isYearly = billing === "yearly";
   const price = isYearly ? pricing.yearlyMonthly : pricing.monthly;
+  const sym = pricing.symbol;
 
   return (
     <section className="w-full max-w-6xl mx-auto px-2 sm:px-4 pb-8">
@@ -93,8 +89,8 @@ const PricingPlans = ({ theme = "dark" }) => {
               key={b}
               onClick={() => setBilling(b)}
               className={`px-5 py-2 text-sm font-semibold rounded-lg capitalize transition-all ${billing === b
-                  ? "bg-emerald-500/20 text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.15)]"
-                  : "text-white/50 hover:text-white"
+                ? "bg-emerald-500/20 text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.15)]"
+                : "text-white/50 hover:text-white"
                 }`}
             >
               {b}
@@ -160,12 +156,12 @@ const PricingPlans = ({ theme = "dark" }) => {
                 <span className="text-sm font-bold text-emerald-300 uppercase tracking-widest">Pro</span>
               </div>
               <div className="flex items-end gap-2">
-                <p className="text-4xl font-black text-white">${price}</p>
+                <p className="text-4xl font-black text-white">{sym}{price}</p>
                 <span className="text-sm text-white/50 mb-1">/ month</span>
               </div>
               {isYearly ? (
                 <p className="text-xs text-emerald-300/70 mt-1">
-                  Billed ${pricing.yearly} / year — saves ${pricing.yearlySavings}
+                  Billed {sym}{pricing.yearlyTotal} / year — saves {sym}{pricing.yearlySavings}
                 </p>
               ) : (
                 <p className="text-xs text-white/35 mt-1">Billed monthly</p>
@@ -192,9 +188,6 @@ const PricingPlans = ({ theme = "dark" }) => {
               </span>
             </button>
 
-            <p className="text-center text-[10px] text-white/25 mt-3">
-              7-day free trial · Cancel anytime · No hidden fees
-            </p>
           </div>
         </div>
       </div>

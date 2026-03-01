@@ -1,17 +1,30 @@
 import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import FocusCard from "@/components/FocusCard";
 import VideoBackground from "@/components/VideoBackground";
 import YouTubeLinkPopup from "@/components/YouTubeLinkPopup";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
 import TodoList from "@/components/TodoList";
-import { Trash2, LayoutGrid, ListTodo } from "lucide-react";
+import Garden from "@/pages/Garden";
+import FeedbackCard from "@/components/FeedbackCard";
+import { Trash2, LayoutGrid, ListTodo, MessageSquarePlus } from "lucide-react";
 import { useProfile } from "@/lib/useProfile";
 import { useInventory } from "@/lib/useInventory";
+import { useUserLocation } from "@/lib/useUserLocation";
 
 const Index = () => {
+  const location = useLocation();
+  const gardenOpen = location.pathname === "/garden";
+
   const { profile, refetch: refetchProfile } = useProfile();
   const { ownedPlantIds, ownedLandIds, buyItem } = useInventory(profile, refetchProfile);
+  const userLocation = useUserLocation(profile?.id ?? null);
+
+  // Track whether the focus timer is active (running or paused-with-progress)
+  // FocusCard broadcasts this via a custom event so we don’t need prop-drilling.
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // load saved theme or default to dark
   const [theme, setTheme] = useState(() => {
@@ -50,6 +63,13 @@ const Index = () => {
     const handler = (e) => setActivePlantId(e?.detail?.plantId ?? null);
     window.addEventListener("focus:tile:change", handler);
     return () => window.removeEventListener("focus:tile:change", handler);
+  }, []);
+
+  // Listen for timer run-state changes broadcast by FocusCard
+  useEffect(() => {
+    const handler = (e) => setIsTimerRunning(e?.detail?.isRunning ?? false);
+    window.addEventListener("focus:runstate:change", handler);
+    return () => window.removeEventListener("focus:runstate:change", handler);
   }, []);
 
   // Listen for volume changes broadcast by MusicMenu
@@ -180,8 +200,8 @@ const Index = () => {
         }
       `}</style>
 
-      {/* Background video */}
-      <VideoBackground videoId={videoId} isMuted={isMuted} volume={videoVolume} isHidden={isVideoHidden} />
+      {/* Background video — hidden (not paused) while garden is open */}
+      <VideoBackground videoId={videoId} isMuted={isMuted} volume={videoVolume} isHidden={isVideoHidden || gardenOpen} />
 
       {/* Foreground content */}
       <div className="relative z-10 min-h-screen flex flex-col">
@@ -192,6 +212,7 @@ const Index = () => {
           toggleMute={toggleMute}
           onOpenYouTubePopup={() => setYtPopupOpen(true)}
           profile={profile}
+          isTimerRunning={isTimerRunning}
         />
 
         <main className="flex-1 flex items-center justify-center px-4">
@@ -201,6 +222,9 @@ const Index = () => {
             ownedPlantIds={ownedPlantIds}
             ownedLandIds={ownedLandIds}
             onBuyItem={buyItem}
+            userTimezone={userLocation.timezone}
+            clientLocalDate={userLocation.localDate}
+            clientWeekStart={userLocation.weekStart}
           />
         </main>
 
@@ -263,6 +287,38 @@ const Index = () => {
           setYtPopupOpen(false);
         }}
       />
+
+      {/* ── Garden overlay ──────────────────────────────────────────────────────
+          Rendered as a fixed full-screen layer so Index (and the YouTube iframe)
+          stay mounted. The video is hidden (not destroyed) while the garden is open.
+          Use browser Back or the Garden's own "←" button to return.
+      ─────────────────────────────────────────────────────────────────────────── */}
+      {gardenOpen && (
+        <div className="fixed inset-0 z-[80]">
+          <Garden />
+        </div>
+      )}
+
+      {/* ── Floating Feedback FAB — bottom-right, above everything ── */}
+      {!gardenOpen && (
+        <button
+          onClick={() => setFeedbackOpen(true)}
+          title="Share feedback"
+          aria-label="Open feedback form"
+          className="fixed bottom-6 right-6 z-[85] w-12 h-12 rounded-full flex items-center justify-center
+            bg-gradient-to-br from-emerald-600/90 to-emerald-500/80
+            border border-emerald-400/40
+            shadow-[0_0_24px_rgba(57,255,20,0.25),0_4px_20px_rgba(0,0,0,0.5)]
+            hover:shadow-[0_0_36px_rgba(57,255,20,0.4),0_4px_24px_rgba(0,0,0,0.6)]
+            hover:scale-110 active:scale-95
+            transition-all duration-200"
+        >
+          <MessageSquarePlus size={20} className="text-white" />
+        </button>
+      )}
+
+      {/* ── Feedback modal ── */}
+      <FeedbackCard open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 };

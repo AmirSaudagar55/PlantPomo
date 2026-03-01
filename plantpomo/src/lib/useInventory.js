@@ -112,8 +112,12 @@ export function useInventory(profile, refetchProfile) {
     const mutate = useCallback((id, delta, item_type = "plant") => {
         setInventory(prev => {
             const cur = prev.get(id) ?? { item_type, quantity: 0 };
+            const newQty = Math.max(0, cur.quantity + delta);
             const next = new Map(prev);
-            next.set(id, { ...cur, quantity: Math.max(0, cur.quantity + delta) });
+            next.set(id, { ...cur, quantity: newQty });
+            // ⚠️ Sync the ref immediately — this is what prevents the rapid-click exploit.
+            // Without this, rapid clicks read stale invRef.current and bypass the qty < 1 guard.
+            invRef.current = next;
             // Write to localStorage immediately so a refresh shows the right value
             writeCache(profile?.id, next);
             return next;
@@ -196,10 +200,12 @@ export function useInventory(profile, refetchProfile) {
 
     // ── decrementInstance ─────────────────────────────────────────────────────
     const decrementInstance = useCallback((item_type, item_id) => {
+        // Re-read the ref right now (not from closure) — prevents rapid-click exploit
         const cur = invRef.current.get(item_id);
-        if (!cur || cur.quantity < 1) return;
+        if (!cur || cur.quantity < 1) return false;
         mutate(item_id, -1, item_type);
         scheduleDatabaseFlush(item_id, item_type);
+        return true;
     }, [mutate, scheduleDatabaseFlush]);
 
     // ── restoreInstance ───────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import {
   Castle,
   Snowflake,
   Flame,
+  Lock,
 } from "lucide-react";
 
 import imgCarnation from "../assets/PlantTiles/Carnation.png";
@@ -42,6 +43,7 @@ const PlantProgress = ({
   growthProgress = 60,
   onPlantClick,
   selectedTile,
+  isSessionLocked = false,
 }) => {
   const outerRadius = 108;
   const innerRadius = 96;
@@ -124,20 +126,18 @@ const PlantProgress = ({
         <div className="absolute inset-0 flex items-center justify-center">
           <button
             onClick={onPlantClick}
-            className="
-              w-[160px] h-[160px]
-              rounded-full
-              flex flex-col items-center justify-center gap-1
-              cursor-pointer
-              transition-all duration-300
-              backdrop-blur-xl
-              bg-white/10
-              border border-white/20
-              shadow-[0_0_30px_rgba(34,197,94,0.25)]
-              hover:scale-105
-              hover:brightness-110
-            "
-            title="Open plant shop"
+            className={[
+              "w-[160px] h-[160px] rounded-full flex flex-col items-center justify-center gap-1",
+              "transition-all duration-300 backdrop-blur-xl relative",
+              isSessionLocked
+                ? "cursor-not-allowed bg-white/5 border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.12)] opacity-80"
+                : "cursor-pointer bg-white/10 border border-white/20 shadow-[0_0_30px_rgba(34,197,94,0.25)] hover:scale-105 hover:brightness-110",
+            ].join(" ")}
+            title={
+              isSessionLocked
+                ? "Cannot switch plant during an active session — pause or reset first"
+                : "Open plant shop"
+            }
           >
             {plantEntry.image ? (
               <img
@@ -148,6 +148,7 @@ const PlantProgress = ({
                   height: 110,
                   objectFit: "contain",
                   filter: `drop-shadow(0 0 16px ${plantEntry.glow}) drop-shadow(0 14px 20px rgba(0,0,0,0.6))`,
+                  opacity: isSessionLocked ? 0.55 : 1,
                 }}
                 className="transition-all duration-500"
               />
@@ -157,6 +158,7 @@ const PlantProgress = ({
                 className={`${plantEntry.color} transition-all duration-500`}
                 style={{
                   filter: `drop-shadow(0 0 10px ${plantEntry.glow})`,
+                  opacity: isSessionLocked ? 0.55 : 1,
                 }}
               />
             )}
@@ -166,6 +168,13 @@ const PlantProgress = ({
             >
               {selectedTile?.name ?? "Sprout"}
             </span>
+
+            {/* Lock badge — only visible when session is active */}
+            {isSessionLocked && (
+              <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
+                <Lock size={11} className="text-red-400" />
+              </div>
+            )}
           </button>
         </div>
       </div>

@@ -130,6 +130,9 @@ const FocusCard = ({
   ownedPlantIds = new Set(["sprout", "flower", "carnation", "lavander", "sakura"]),
   ownedLandIds = new Set(["meadow"]),
   onBuyItem,
+  userTimezone = "UTC",
+  clientLocalDate = null,   // "YYYY-MM-DD" in user's local TZ
+  clientWeekStart = null,   // "YYYY-MM-DD" Monday of user's current week
 }) => {
   /* ── Persistent settings ── */
   const [pomodoroSettings, setPomodoroSettings] = useState(DEFAULT_SETTINGS);
@@ -165,6 +168,7 @@ const FocusCard = ({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm }
+  const [lockedMsg, setLockedMsg] = useState(false);        // brief "session locked" flash
   const [selectedTile, setSelectedTile] = useState(() => plants.find((p) => ownedPlantIds.has(p.id)) ?? plants[0]);
 
   /* Ticker for re-render every 250 ms (lightweight) */
@@ -219,6 +223,14 @@ const FocusCard = ({
     );
   }, [selectedTile?.id]);
 
+  /* ─── Broadcast timer run-state so Index / Navbar can gate garden access ─── */
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("focus:runstate:change", {
+        detail: { isRunning: runState === "running" || (runState === "paused" && accumulatedMs > 0) },
+      })
+    );
+  }, [runState, accumulatedMs]);
 
   /* ─── Auto-advance Pomodoro when countdown hits 0 ─── */
   useEffect(() => {
@@ -326,12 +338,15 @@ const FocusCard = ({
         p_land_id: null,
         p_mode: sessionMode,
         p_build_time_mins: selectedTile?.buildTime ?? 25,
+        // Localized boundaries — ensure streak/leaderboard use the user's local day
+        p_client_local_date: clientLocalDate ?? null,
+        p_client_week_start: clientWeekStart ?? null,
       });
       refetchProfile?.();
     } catch (_) {
       // Non-blocking: local state already updated
     }
-  }, [selectedTile, refetchProfile]);
+  }, [selectedTile, refetchProfile, clientLocalDate, clientWeekStart]);
 
   /** Called when a Pomodoro phase naturally expires (timer hits 0) */
   const handlePomodoroPhaseEnd = useCallback(() => {
@@ -516,9 +531,24 @@ const FocusCard = ({
             <PlantProgress
               timerProgress={timerProgress}
               growthProgress={growthProgress}
-              onPlantClick={() => { if (!isSessionLocked) setShopOpen(true); }}
+              onPlantClick={() => {
+                if (isSessionLocked) {
+                  setLockedMsg(true);
+                  setTimeout(() => setLockedMsg(false), 2500);
+                  return;
+                }
+                setShopOpen(true);
+              }}
               selectedTile={selectedTile}
+              isSessionLocked={isSessionLocked}
             />
+
+            {/* Locked flash — fades in/out below the ring */}
+            {lockedMsg && (
+              <div className="-mt-2 mb-1 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/25 text-red-300 text-[11px] font-medium text-center select-none animate-pulse">
+                🔒 Cannot switch plant during an active session. Pause first.
+              </div>
+            )}
 
             {/* Phase pill */}
             <div className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30 -mt-1 select-none">
@@ -697,25 +727,49 @@ const FocusCard = ({
                 </div>
               )}
 
-              {/* Sliders */}
+              {/* Sliders + number inputs */}
               <div className="flex flex-col gap-4">
                 {[
-                  { label: "Focus Duration", key: "focusDuration", icon: "🎯", color: "#39ff14", max: 120 },
-                  { label: "Short Break", key: "shortBreakDuration", icon: "☕", color: "#38bdf8", max: 30 },
-                  { label: "Long Break", key: "longBreakDuration", icon: "🌿", color: "#a78bfa", max: 60 },
-                  { label: "Sessions Before Long Break", key: "sessionsBeforeLongBreak", icon: "🔁", color: "#fb923c", max: 10, unit: "sessions" },
-                ].map(({ label, key, icon, color, max, unit }) => {
-                  const val = Number(draftSettings[key]) || 1;
+                  { label: "Focus Duration", key: "focusDuration", icon: "🎯", color: "#39ff14", thumbClass: "thumb-green", max: 120 },
+                  { label: "Short Break", key: "shortBreakDuration", icon: "☕", color: "#38bdf8", thumbClass: "thumb-sky", max: 30 },
+                  { label: "Long Break", key: "longBreakDuration", icon: "🌿", color: "#a78bfa", thumbClass: "thumb-purple", max: 60 },
+                  { label: "Sessions Before Long Break", key: "sessionsBeforeLongBreak", icon: "🔁", color: "#fb923c", thumbClass: "thumb-orange", max: 10, unit: "sessions" },
+                ].map(({ label, key, icon, color, thumbClass, max, unit }) => {
+                  const raw = draftSettings[key];
+                  const val = Math.min(max, Math.max(1, Number(raw) || 1));
                   const pct = Math.round((val / max) * 100);
+                  const isLocked = runState !== "idle" && key !== "sessionsBeforeLongBreak";
+
+                  const handleNum = (e) => {
+                    // Allow typing freely; clamp only on blur / Enter
+                    setDraftSettings(prev => ({ ...prev, [key]: e.target.value }));
+                  };
+                  const handleNumBlur = (e) => {
+                    const clamped = Math.min(max, Math.max(1, Number(e.target.value) || 1));
+                    setDraftSettings(prev => ({ ...prev, [key]: clamped }));
+                  };
+
                   return (
-                    <div key={key} className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4">
+                    <div key={key} className={`rounded-2xl bg-white/[0.03] border border-white/[0.06] p-4 transition-opacity ${isLocked ? "opacity-50" : ""}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <span className="text-base">{icon}</span>
                           <span className="text-xs font-semibold text-white/75">{label}</span>
                         </div>
+                        {/* Typed number input — synced with slider */}
                         <div className="flex items-center gap-1">
-                          <span className="text-base font-black tabular-nums" style={{ color }}>{val}</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={max}
+                            value={raw}
+                            disabled={isLocked}
+                            onChange={handleNum}
+                            onBlur={handleNumBlur}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                            className="w-12 text-right text-base font-black tabular-nums bg-transparent border-b border-white/10 focus:border-white/30 outline-none transition-colors disabled:cursor-not-allowed"
+                            style={{ color, WebkitAppearance: "none", MozAppearance: "textfield" }}
+                          />
                           <span className="text-[10px] text-white/30">{unit ?? "min"}</span>
                         </div>
                       </div>
@@ -724,12 +778,11 @@ const FocusCard = ({
                         min="1"
                         max={max}
                         value={val}
-                        disabled={runState !== "idle" && key !== "sessionsBeforeLongBreak"}
-                        onChange={(e) => setDraftSettings((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={isLocked}
+                        onChange={(e) => setDraftSettings(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className={`settings-range ${thumbClass} w-full h-1.5 rounded-full appearance-none cursor-pointer disabled:cursor-not-allowed`}
                         style={{
                           background: `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, rgba(255,255,255,0.08) ${pct}%, rgba(255,255,255,0.08) 100%)`,
-                          accentColor: color,
                         }}
                       />
                       <div className="flex justify-between mt-1.5">
@@ -740,6 +793,38 @@ const FocusCard = ({
                   );
                 })}
               </div>
+
+              {/* Scoped slider thumb styles — appearance:none removes accentColor in WebKit */}
+              <style>{`
+                .settings-range { outline: none; }
+                .settings-range::-webkit-slider-thumb {
+                  -webkit-appearance: none; appearance: none;
+                  width: 16px; height: 16px; border-radius: 50%;
+                  cursor: pointer; transition: transform 0.1s, box-shadow 0.15s;
+                  border: 2px solid rgba(0,0,0,0.4);
+                }
+                .settings-range::-webkit-slider-thumb:hover { transform: scale(1.25); }
+                .settings-range::-moz-range-thumb {
+                  width: 16px; height: 16px; border-radius: 50%;
+                  cursor: pointer; border: 2px solid rgba(0,0,0,0.4);
+                }
+                /* Per-colour thumb classes */
+                .thumb-green::-webkit-slider-thumb  { background: #39ff14; box-shadow: 0 0 6px rgba(57,255,20,0.6); }
+                .thumb-green::-webkit-slider-thumb:hover { box-shadow: 0 0 12px rgba(57,255,20,0.9); }
+                .thumb-green::-moz-range-thumb      { background: #39ff14; }
+                .thumb-sky::-webkit-slider-thumb    { background: #38bdf8; box-shadow: 0 0 6px rgba(56,189,248,0.6); }
+                .thumb-sky::-webkit-slider-thumb:hover   { box-shadow: 0 0 12px rgba(56,189,248,0.9); }
+                .thumb-sky::-moz-range-thumb        { background: #38bdf8; }
+                .thumb-purple::-webkit-slider-thumb { background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,0.6); }
+                .thumb-purple::-webkit-slider-thumb:hover{ box-shadow: 0 0 12px rgba(167,139,250,0.9); }
+                .thumb-purple::-moz-range-thumb     { background: #a78bfa; }
+                .thumb-orange::-webkit-slider-thumb { background: #fb923c; box-shadow: 0 0 6px rgba(251,146,60,0.6); }
+                .thumb-orange::-webkit-slider-thumb:hover{ box-shadow: 0 0 12px rgba(251,146,60,0.9); }
+                .thumb-orange::-moz-range-thumb     { background: #fb923c; }
+                /* Hide spin buttons on number inputs */
+                input[type=number]::-webkit-inner-spin-button,
+                input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+              `}</style>
 
               {/* Footer buttons */}
               <div className="flex items-center gap-2 mt-5">

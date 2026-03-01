@@ -113,6 +113,8 @@ export default function Garden() {
   const viewportRef = useRef({ width: 0, height: 0 });
   const dirtyRef = useRef(true);
   const frameRef = useRef(0);
+  const cloudsRef = useRef(null);        // generated once on mount
+  const cloudTickRef = useRef(0);        // setInterval id for cloud drift
   // Debounced garden sync — coalesces rapid placements into 1 DB call
   const gardenDebounceRef = useRef(null);
   const GARDEN_DEBOUNCE_MS = 1500;
@@ -204,18 +206,21 @@ export default function Garden() {
 
   // ── Place tile (synchronous optimistic update) ────────────────────────────
   const placeTile = useCallback((tileType, gridX, gridY, tileId) => {
-    const qty = getQuantity(tileType);
-    if (qty < 1 && profile?.id) {
-      addToast("No instances left! Grow more in focus sessions.", "warning");
-      return false;
+    // decrementInstance is the atomic gate — it re-reads the live ref and returns
+    // false if qty is already 0, preventing the rapid-click unlimited-spawn exploit.
+    if (profile?.id) {
+      const ok = decrementInstance("plant", tileType);
+      if (!ok) {
+        addToast("No instances left! Grow more in focus sessions.", "warning");
+        return false;
+      }
     }
     const id = tileId ?? `t_${Math.random().toString(36).slice(2, 9)}`;
     const next = [...tilesRef.current, { id, type: tileType, x: gridX, y: gridY }];
     commitTiles(next);                        // instant UI + isDirty update
-    decrementInstance("plant", tileType);     // instant local state, debounced DB
     scheduleSyncGarden(next);                 // localStorage now, DB after quiet
     return true;
-  }, [getQuantity, commitTiles, decrementInstance, scheduleSyncGarden, addToast, profile?.id]);
+  }, [commitTiles, decrementInstance, scheduleSyncGarden, addToast, profile?.id]);
 
   // ── Remove tile (synchronous optimistic update) ───────────────────────────
   const removeTile = useCallback((gridX, gridY) => {
@@ -253,16 +258,24 @@ export default function Garden() {
     addToast("Garden saved ✓", "success");
   }, [storageKey, profile?.id, addToast]);
 
-  const clearLayout = useCallback(() => {
+  const clearLayout = useCallback(async () => {
     if (!window.confirm("Remove all tiles? They will be returned to your inventory.")) return;
     for (const tile of tilesRef.current) restoreInstance("plant", tile.type);
-    if (supabase && profile?.id) {
-      supabase.from("garden_instances").delete().eq("user_id", profile.id)
-        .then(({ error }) => { if (error) console.warn("[Garden] clear:", error.message); });
-    }
     commitTiles([]);
+    // Persist immediately so the empty garden survives page refresh
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        version: 2, savedAt: new Date().toISOString(), tiles: [], camera: { ...cameraRef.current },
+      }));
+    } catch { }
+    if (supabase && profile?.id) {
+      const { error } = await supabase.rpc("sync_garden_layout", { p_tiles: [] });
+      if (error) console.warn("[Garden] clear sync:", error.message);
+    }
+    savedSnapshotRef.current = snapshotTiles([]);
+    setIsDirty(false);
     addToast("Garden cleared — all plants returned to inventory", "info");
-  }, [commitTiles, restoreInstance, addToast, profile?.id]);
+  }, [commitTiles, restoreInstance, storageKey, addToast, profile?.id]);
 
   const goHome = useCallback(() => {
     if (isDirty && !window.confirm("Unsaved changes. Leave anyway?")) return;
@@ -399,17 +412,20 @@ export default function Garden() {
 
     const drawBase = (sx, sy, cW, cH) => {
       const d = TILE.depth * cameraRef.current.zoom;
+      // Sky island: bright grassy top, lighter stone rock faces
       const g = ctx.createLinearGradient(sx, sy, sx, sy + cH);
-      g.addColorStop(0, "#5dd87a"); g.addColorStop(1, "#2e8c45");
+      g.addColorStop(0, "#6ee89b"); g.addColorStop(1, "#38a05c");
       ctx.beginPath(); diamond(sx, sy, cW, cH); ctx.fillStyle = g; ctx.fill();
+      // Right face — medium stone
       ctx.beginPath();
       ctx.moveTo(sx, sy + cH); ctx.lineTo(sx + cW / 2, sy + cH / 2);
       ctx.lineTo(sx + cW / 2, sy + cH / 2 + d); ctx.lineTo(sx, sy + cH + d);
-      ctx.closePath(); ctx.fillStyle = "#7a4e28"; ctx.fill();
+      ctx.closePath(); ctx.fillStyle = "#8fa8c0"; ctx.fill();
+      // Left face — darker stone (shadow side)
       ctx.beginPath();
       ctx.moveTo(sx, sy + cH); ctx.lineTo(sx - cW / 2, sy + cH / 2);
       ctx.lineTo(sx - cW / 2, sy + cH / 2 + d); ctx.lineTo(sx, sy + cH + d);
-      ctx.closePath(); ctx.fillStyle = "#4a2e14"; ctx.fill();
+      ctx.closePath(); ctx.fillStyle = "#5c7a96"; ctx.fill();
     };
 
     const drawImageToCell = ({ img, sx, sy, cW, cH, imageScale = 1, yOffset = 0, opacity = 1 }) => {
@@ -441,6 +457,38 @@ export default function Garden() {
       return items.length > 0;
     };
 
+    // ── Cloud helpers ──────────────────────────────────────────────────────────
+    // Generate clouds once; each cloud: { bx, by, scale, opacity, speed }
+    // bx/by are "base" positions in [0,1] normalised coords.
+    if (!cloudsRef.current) {
+      const rng = (a, b) => a + Math.random() * (b - a);
+      cloudsRef.current = Array.from({ length: 5 }, () => ({
+        bx: rng(0, 1),          // normalised x (wraps)
+        by: rng(0.50, 0.90),    // lower portion of canvas (sky below grid)
+        scale: rng(80, 140),
+        opacity: rng(0.10, 0.20), // very soft — background only
+        speed: rng(0.000006, 0.000018), // ~6× slower than before
+      }));
+    }
+
+    const drawCloud = (cx, cy, r, alpha) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const offsets = [
+        [0, 0, r], [-r * 0.55, r * 0.18, r * 0.72], [r * 0.55, r * 0.18, r * 0.72],
+        [-r * 0.28, -r * 0.32, r * 0.64], [r * 0.28, -r * 0.32, r * 0.64],
+      ];
+      const grad = ctx.createRadialGradient(cx, cy - r * 0.1, 0, cx, cy, r * 1.2);
+      grad.addColorStop(0, "rgba(255,255,255,1)");
+      grad.addColorStop(0.6, "rgba(220,235,255,0.85)");
+      grad.addColorStop(1, "rgba(190,220,255,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      for (const [dx, dy, pr] of offsets) ctx.arc(cx + dx, cy + dy, pr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
     const draw = () => {
       if (!dirtyRef.current) return;
       dirtyRef.current = false;
@@ -449,14 +497,36 @@ export default function Garden() {
       const cW = TILE.width * zoom, cH = TILE.height * zoom;
 
       ctx.clearRect(0, 0, width, height);
-      const bg = ctx.createLinearGradient(0, 0, 0, height);
-      bg.addColorStop(0, "#071520"); bg.addColorStop(1, "#020508");
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
 
-      // Grid
+      // ── Sky gradient — muted, ambient (garden is the star) ──
+      const bg = ctx.createLinearGradient(0, 0, 0, height);
+      bg.addColorStop(0, "#1a2e45");   // dark muted navy at top
+      bg.addColorStop(0.40, "#234e72");   // muted mid blue
+      bg.addColorStop(0.75, "#4a85b5");   // soft blue
+      bg.addColorStop(1, "#8bb8d4");   // pale horizon (more grey, less vivid)
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+
+      // ── Sun glow (top-right atmospheric light) ──
+      const sunR = Math.min(width, height) * 0.6;
+      const sunGrad = ctx.createRadialGradient(width * 0.82, height * 0.08, 0, width * 0.82, height * 0.08, sunR);
+      sunGrad.addColorStop(0, "rgba(255,240,180,0.18)");
+      sunGrad.addColorStop(0.5, "rgba(255,220,120,0.07)");
+      sunGrad.addColorStop(1, "rgba(255,220,120,0)");
+      ctx.fillStyle = sunGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // ── Clouds (drift slowly left, wrapping) ──
+      const now = performance.now();
+      for (const c of cloudsRef.current) {
+        const bxNow = ((c.bx - now * c.speed) % 1 + 1) % 1; // wrap 0→1
+        drawCloud(bxNow * width, c.by * height, c.scale, c.opacity);
+      }
+
+      // ── Grid (semi-transparent white, visible against sky) ──
       const center = screenToWorld(width / 2, height / 2);
       const range = Math.ceil(Math.max(width, height) / Math.min(cW, cH)) + 6;
-      ctx.save(); ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.save(); ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.18)";
       for (let gx = center.x - range; gx <= center.x + range; gx++) {
         for (let gy = center.y - range; gy <= center.y + range; gy++) {
           const { x: sx, y: sy } = worldToScreen(gx, gy);
@@ -489,7 +559,7 @@ export default function Garden() {
           const bt = BLOCK_TYPES[selectedTypeRef.current];
           if (bt) { const had = drawSprites(bt, sx, sy, cW, cH, 0.5); if (!had && bt.color) { ctx.save(); ctx.globalAlpha = 0.4; ctx.beginPath(); diamond(sx, sy, cW, cH); ctx.fillStyle = bt.color; ctx.fill(); ctx.restore(); } }
         }
-        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,255,255,0.035)";
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,255,255,0.06)";
         ctx.beginPath(); diamond(sx, sy, cW, cH); ctx.fill(); ctx.restore();
       }
 
@@ -512,6 +582,10 @@ export default function Garden() {
         }
       }
     };
+
+    // Cloud drift tick — marks dirty every 100 ms so clouds move without burning
+    // 60 fps on every frame when nothing else is happening.
+    cloudTickRef.current = setInterval(() => { dirtyRef.current = true; }, 100);
 
     const loop = () => { draw(); frameRef.current = requestAnimationFrame(loop); };
 
@@ -632,6 +706,7 @@ export default function Garden() {
 
     return () => {
       cancelAnimationFrame(frameRef.current);
+      clearInterval(cloudTickRef.current);
       canvas.removeEventListener("mousemove", onMove); canvas.removeEventListener("mousedown", onDown);
       canvas.removeEventListener("mouseup", onUp); canvas.removeEventListener("contextmenu", onCtxMenu);
       canvas.removeEventListener("wheel", onWheel); canvas.removeEventListener("touchstart", onTS);
